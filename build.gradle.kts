@@ -7,7 +7,7 @@ plugins {
 
 allprojects {
 
-    version = "2.0.0"
+    version = "2.0.11.1"
 
     apply<JavaPlugin>()
     apply(plugin = "java")
@@ -34,12 +34,12 @@ allprojects {
         maven("https://nexus.phoenixdevt.fr/repository/maven-public/")
         maven("https://r.irepo.space/maven/")
         maven("https://repo.auxilor.io/repository/maven-public/")
-        maven("https://betonquest.org/nexus/repository/betonquest/")
         maven("https://repo.william278.net/releases/")
         maven("https://s01.oss.sonatype.org/content/repositories/snapshots/")
         maven("https://repo.minebench.de/")
         maven("https://repo.xenondevs.xyz/releases/")
         maven("https://repo.oraxen.com/releases")
+        maven("https://nexus.betonquest.org/repository/betonquest/")
     }
 }
 

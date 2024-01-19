@@ -42,7 +42,6 @@ import org.jetbrains.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Objects;
 
 public class IntegrationManagerImpl implements IntegrationManager {
 
@@ -149,10 +148,8 @@ public class IntegrationManagerImpl implements IntegrationManager {
             hookMessage("ClueScrolls");
         }
         if (plugin.isHookedPluginEnabled("BetonQuest")) {
-            if (Objects.requireNonNull(Bukkit.getPluginManager().getPlugin("BetonQuest")).getPluginMeta().getVersion().startsWith("2")) {
-                BetonQuestHook.register();
-                hookMessage("BetonQuest");
-            }
+            BetonQuestHook.register();
+            hookMessage("BetonQuest");
         }
 //        if (plugin.isHookedPluginEnabled("NotQuests")) {
 //            NotQuestHook notQuestHook = new NotQuestHook();

@@ -23,6 +23,10 @@ import net.momirealms.customfishing.api.CustomFishingPlugin;
 import net.momirealms.customfishing.api.common.Key;
 import net.momirealms.customfishing.api.common.Pair;
 import net.momirealms.customfishing.api.common.Tuple;
+import net.momirealms.customfishing.api.event.FishingBagPreCollectEvent;
+import net.momirealms.customfishing.api.event.FishingLootPreSpawnEvent;
+import net.momirealms.customfishing.api.event.FishingLootSpawnEvent;
+import net.momirealms.customfishing.api.manager.ActionManager;
 import net.momirealms.customfishing.api.manager.ItemManager;
 import net.momirealms.customfishing.api.manager.RequirementManager;
 import net.momirealms.customfishing.api.mechanic.GlobalSettings;
@@ -51,7 +55,7 @@ import org.bukkit.NamespacedKey;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.enchantments.Enchantment;
-import org.bukkit.entity.Entity;
+import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
@@ -122,6 +126,7 @@ public class ItemManagerImpl implements ItemManager, Listener {
     }
 
     public void disable() {
+        HandlerList.unregisterAll(this);
         this.buildableItemMap.clear();
         this.itemLibraryMap.clear();
     }
@@ -328,7 +333,6 @@ public class ItemManagerImpl implements ItemManager, Listener {
             itemCFBuilder = CFBuilder.of("vanilla", material.toUpperCase(Locale.ENGLISH));
         }
         itemCFBuilder
-                .amount(section.getInt("amount", 1))
                 .stackable(section.getBoolean("stackable", true))
                 .size(ConfigUtils.getFloatPair(section.getString("size")))
                 .price((float) section.getDouble("price.base"), (float) section.getDouble("price.bonus"))
@@ -349,6 +353,12 @@ public class ItemManagerImpl implements ItemManager, Listener {
                 .head(section.getString("head64"))
                 .name(section.getString("display.name"))
                 .lore(section.getStringList("display.lore"));
+        if (section.get("amount") instanceof String s) {
+            Pair<Integer, Integer> pair = ConfigUtils.getIntegerPair(s);
+            itemCFBuilder.amount(pair.left(), pair.right());
+        } else {
+            itemCFBuilder.amount(section.getInt("amount", 1));
+        }
         return itemCFBuilder;
     }
 
@@ -367,7 +377,8 @@ public class ItemManagerImpl implements ItemManager, Listener {
         if (temp.getType() == Material.AIR) {
             return temp;
         }
-        temp.setAmount(builder.getAmount());
+        int amount = builder.getAmount();
+        temp.setAmount(amount);
         NBTItem nbtItem = new NBTItem(temp);
         for (ItemBuilder.ItemPropertyEditor editor : builder.getEditors()) {
             editor.edit(player, nbtItem, placeholders);
@@ -416,41 +427,49 @@ public class ItemManagerImpl implements ItemManager, Listener {
         return itemLibraryMap.remove(identification) != null;
     }
 
-    /**
-     * Drops an item based on the provided loot, applying velocity from a hook location to a player location.
-     *
-     * @param player         The player for whom the item is intended.
-     * @param hookLocation   The location where the item will initially drop.
-     * @param playerLocation The target location towards which the item's velocity is applied.
-     * @param id             The loot object representing the item to be dropped.
-     * @param args           A map of placeholders for item customization.
-     */
     @Override
-    public void dropItem(Player player, Location hookLocation, Location playerLocation, String id, Map<String, String> args) {
-        ItemStack item = build(player, "item", id, args);
-        if (item == null) {
-            LogUtils.warn(String.format("Item %s not exists", id));
-            return;
-        }
+    public void dropItem(Player player, Location hookLocation, Location playerLocation, ItemStack item, Condition condition) {
         if (item.getType() == Material.AIR) {
             return;
         }
-        Entity itemEntity = hookLocation.getWorld().dropItem(hookLocation, item);
-        Vector vector = playerLocation.subtract(hookLocation).toVector().multiply(0.105);
-        vector = vector.setY((vector.getY() + 0.22) * 1.18);
-        itemEntity.setVelocity(vector);
-    }
 
-    /**
-     * Drops an item entity at the specified location and applies velocity towards another location.
-     *
-     * @param hookLocation   The location where the item will initially drop.
-     * @param playerLocation The target location towards which the item's velocity is applied.
-     * @param itemStack      The item stack to be dropped as an entity.
-     */
-    @Override
-    public void dropItem(Location hookLocation, Location playerLocation, ItemStack itemStack) {
-        Entity itemEntity = hookLocation.getWorld().dropItem(hookLocation, itemStack);
+        if (CFConfig.enableFishingBag && plugin.getBagManager().doesBagStoreLoots() && RequirementManager.isRequirementMet(condition, plugin.getBagManager().getCollectRequirements())) {
+            var bag = plugin.getBagManager().getOnlineBagInventory(player.getUniqueId());
+
+            FishingBagPreCollectEvent preCollectEvent = new FishingBagPreCollectEvent(player, item, bag);
+            Bukkit.getPluginManager().callEvent(preCollectEvent);
+            if (preCollectEvent.isCancelled()) {
+                return;
+            }
+
+            int cannotPut = ItemUtils.putLootsToBag(bag, item, item.getAmount());
+            // some are put into bag
+            if (cannotPut != item.getAmount()) {
+                ActionManager.triggerActions(condition, plugin.getBagManager().getCollectLootActions());
+            }
+            // all are put
+            if (cannotPut == 0) {
+                return;
+            }
+            // bag is full
+            item.setAmount(cannotPut);
+            ActionManager.triggerActions(condition, plugin.getBagManager().getBagFullActions());
+        }
+
+        FishingLootPreSpawnEvent preSpawnEvent = new FishingLootPreSpawnEvent(player, hookLocation, item);
+        Bukkit.getPluginManager().callEvent(preSpawnEvent);
+        if (preSpawnEvent.isCancelled()) {
+            return;
+        }
+
+        Item itemEntity = hookLocation.getWorld().dropItem(hookLocation, item);
+        FishingLootSpawnEvent spawnEvent = new FishingLootSpawnEvent(player, hookLocation, itemEntity);
+        Bukkit.getPluginManager().callEvent(spawnEvent);
+        if (spawnEvent.isCancelled()) {
+            itemEntity.remove();
+            return;
+        }
+
         Vector vector = playerLocation.subtract(hookLocation).toVector().multiply(0.105);
         vector = vector.setY((vector.getY() + 0.22) * 1.18);
         itemEntity.setVelocity(vector);
@@ -497,14 +516,15 @@ public class ItemManagerImpl implements ItemManager, Listener {
 
         private final String library;
         private final String id;
-        private int amount;
+        private int min_amount;
+        private int max_amount;
         private final LinkedHashMap<String, ItemPropertyEditor> editors;
 
         public CFBuilder(String library, String id) {
             this.id = id;
             this.library = library;
             this.editors = new LinkedHashMap<>();
-            this.amount = 1;
+            this.min_amount = (max_amount = 1);
         }
 
         public static CFBuilder of(String library, String id) {
@@ -544,7 +564,15 @@ public class ItemManagerImpl implements ItemManager, Listener {
 
         @Override
         public ItemBuilder amount(int amount) {
-            this.amount = amount;
+            this.min_amount = amount;
+            this.max_amount = amount;
+            return this;
+        }
+
+        @Override
+        public ItemBuilder amount(int min_amount, int max_amount) {
+            this.min_amount = min_amount;
+            this.max_amount = max_amount;
             return this;
         }
 
@@ -587,14 +615,14 @@ public class ItemManagerImpl implements ItemManager, Listener {
         @Override
         public ItemBuilder nbt(Map<String, Object> nbt) {
             if (nbt.size() == 0) return this;
-            editors.put("nbt", (player, nbtItem, placeholders) -> NBTUtils.setTagsFromBukkitYAML(nbtItem, nbt));
+            editors.put("nbt", (player, nbtItem, placeholders) -> NBTUtils.setTagsFromBukkitYAML(player, placeholders, nbtItem, nbt));
             return this;
         }
 
         @Override
         public ItemBuilder nbt(ConfigurationSection section) {
             if (section == null) return this;
-            editors.put("nbt", (player, nbtItem, placeholders) -> NBTUtils.setTagsFromBukkitYAML(nbtItem, section.getValues(false)));
+            editors.put("nbt", (player, nbtItem, placeholders) -> NBTUtils.setTagsFromBukkitYAML(player, placeholders, nbtItem, section.getValues(false)));
             return this;
         }
 
@@ -703,17 +731,14 @@ public class ItemManagerImpl implements ItemManager, Listener {
         public ItemBuilder price(float base, float bonus) {
             if (base == 0 && bonus == 0) return this;
             editors.put("price", (player, nbtItem, placeholders) -> {
-                if (base != 0) {
-                    placeholders.put("{base}", String.format("%.2f", base));
-                }
-                if (bonus != 0) {
-                    placeholders.put("{bonus}", String.format("%.2f", bonus));
-                }
-                float size = Float.parseFloat(placeholders.getOrDefault("{SIZE}", "0"));
-                double price = CustomFishingPlugin.get().getMarketManager().getFishPrice(
-                        base,
-                        bonus,
-                        size
+                placeholders.put("{base}", String.format("%.2f", base));
+                placeholders.put("{BASE}", String.valueOf(base));
+                placeholders.put("{bonus}", String.format("%.2f", bonus));
+                placeholders.put("{BONUS}", String.valueOf(bonus));
+                double price;
+                price = CustomFishingPlugin.get().getMarketManager().getFishPrice(
+                        player,
+                        placeholders
                 );
                 nbtItem.setDouble("Price", price);
                 placeholders.put("{price}", String.format("%.2f", price));
@@ -742,6 +767,8 @@ public class ItemManagerImpl implements ItemManager, Listener {
                 cfCompound.setFloat("size", random);
                 placeholders.put("{size}", String.format("%.2f", random));
                 placeholders.put("{SIZE}", String.valueOf(random));
+                placeholders.put("{min_size}", String.valueOf(size.left()));
+                placeholders.put("{max_size}", String.valueOf(size.right()));
             });
             return this;
         }
@@ -810,7 +837,7 @@ public class ItemManagerImpl implements ItemManager, Listener {
 
         @Override
         public int getAmount() {
-            return amount;
+            return ThreadLocalRandom.current().nextInt(min_amount, max_amount + 1);
         }
 
         @Override
@@ -878,7 +905,8 @@ public class ItemManagerImpl implements ItemManager, Listener {
         Loot loot = plugin.getLootManager().getLoot(id);
         if (loot != null) {
             Condition condition = new Condition(event.getPlayer());
-            GlobalSettings.triggerLootActions(ActionTrigger.CONSUME, condition);
+            if (!loot.disableGlobalAction())
+                GlobalSettings.triggerLootActions(ActionTrigger.CONSUME, condition);
             loot.triggerActions(ActionTrigger.CONSUME, condition);
         }
     }

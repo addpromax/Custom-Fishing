@@ -20,6 +20,7 @@ package net.momirealms.customfishing.api.mechanic.loot;
 import net.momirealms.customfishing.api.mechanic.action.Action;
 import net.momirealms.customfishing.api.mechanic.action.ActionTrigger;
 import net.momirealms.customfishing.api.mechanic.condition.Condition;
+import net.momirealms.customfishing.api.mechanic.statistic.StatisticsKey;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.HashMap;
@@ -32,6 +33,11 @@ public interface Loot {
      * @return True if it's an instance game, false otherwise.
      */
     boolean instanceGame();
+
+    /**
+     * Check if the loot disables global actions
+     */
+    boolean disableGlobalAction();
 
     /**
      * Get the unique ID of this loot.
@@ -54,6 +60,8 @@ public interface Loot {
      */
     @NotNull
     String getNick();
+
+    StatisticsKey getStatisticKey();
 
     /**
      * Check if this loot should be shown in the finder.

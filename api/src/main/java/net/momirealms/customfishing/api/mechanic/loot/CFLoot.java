@@ -20,6 +20,7 @@ package net.momirealms.customfishing.api.mechanic.loot;
 import net.momirealms.customfishing.api.mechanic.action.Action;
 import net.momirealms.customfishing.api.mechanic.action.ActionTrigger;
 import net.momirealms.customfishing.api.mechanic.condition.Condition;
+import net.momirealms.customfishing.api.mechanic.statistic.StatisticsKey;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.HashMap;
@@ -33,11 +34,13 @@ public class CFLoot implements Loot {
     private String nick;
     private boolean showInFinder;
     private boolean disableGame;
+    private boolean disableGlobalAction;
     private boolean disableStats;
     private boolean instanceGame;
     private double score;
     private String[] lootGroup;
     private String filePath;
+    private StatisticsKey statisticsKey;
 
     public CFLoot(String id, LootType type) {
         this.id = id;
@@ -128,6 +131,17 @@ public class CFLoot implements Loot {
         }
 
         /**
+         * Set whether global actions are disabled for this loot.
+         *
+         * @param disable True if statistics are disabled, false otherwise.
+         * @return The builder.
+         */
+        public Builder disableGlobalActions(boolean disable) {
+            this.loot.disableGlobalAction = disable;
+            return this;
+        }
+
+        /**
          * Set the score for this loot.
          *
          * @param score The score.
@@ -146,6 +160,17 @@ public class CFLoot implements Loot {
          */
         public Builder lootGroup(String[] groups) {
             this.loot.lootGroup = groups;
+            return this;
+        }
+
+        /**
+         * Set the statistics key for this loot
+         *
+         * @param statisticsKey statistics key
+         * @return The builder.
+         */
+        public Builder statsKey(StatisticsKey statisticsKey) {
+            this.loot.statisticsKey = statisticsKey;
             return this;
         }
 
@@ -245,6 +270,11 @@ public class CFLoot implements Loot {
         return this.nick;
     }
 
+    @Override
+    public StatisticsKey getStatisticKey() {
+        return this.statisticsKey;
+    }
+
     /**
      * Check if this loot should be shown in the finder.
      *
@@ -283,6 +313,14 @@ public class CFLoot implements Loot {
     @Override
     public boolean disableStats() {
         return this.disableStats;
+    }
+
+    /**
+     * Check if the loot disables global actions
+     */
+    @Override
+    public boolean disableGlobalAction() {
+        return this.disableGlobalAction;
     }
 
     /**

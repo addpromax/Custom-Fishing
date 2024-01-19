@@ -1,6 +1,6 @@
 # Developer: @Xiao-MoMi
 # Wiki: https://mo-mi.gitbook.io/xiaomomi-plugins/
-config-version: '31'
+config-version: '32'
 
 # Debug
 debug: false
@@ -45,7 +45,46 @@ mechanics:
     hook: {}
     bait: {}
     loot:
+      new_size_record:
+        conditional_size_record_action:
+          type: conditional
+          value:
+            conditions:
+              has-stats: true
+            actions:
+              actionbar_action:
+                type: actionbar
+                value: '<#FFD700>[New Record]</#FFD700> <#FFFFF0>You caught a(n) {nick} which is <#FFA500>{size}cm</#FFA500> long!</#FFFFF0>'
+              sound_action:
+                type: sound
+                value:
+                  key: "minecraft:block.note_block.cow_bell"
+                  source: 'player'
+                  volume: 1
+                  pitch: 1
+              delayed_sound:
+                type: delay
+                value:
+                  delay: 2
+                  actions:
+                    sound_action:
+                      type: sound
+                      value:
+                        key: "minecraft:block.note_block.bell"
+                        source: 'player'
+                        volume: 1
+                        pitch: 1
       success:
+        conditional_size_info_action:
+          type: conditional
+          value:
+            conditions:
+              has-size: true
+              has-stats: true
+            actions:
+              actionbar_action:
+                type: actionbar
+                value: '<gray>You caught a(n) {nick} which is <#F5F5F5>{size}cm</#F5F5F5> long!</gray> <#C0C0C0>(Best record: {record}cm)</#C0C0C0>'
         title_action:
           type: random-title
           value:
@@ -53,7 +92,7 @@ mechanics:
               - '<green>GG!</green>'
               - '<green>Good Job!</green>'
             subtitles:
-              - 'You caught a {nick}'
+              - 'You caught a(n) {nick}'
               - 'Whoa! Nice catch!'
               - 'Oh {nick} here we go!'
               - 'Let''s see what it is!'
@@ -89,11 +128,8 @@ mechanics:
                   type: fake-item
                   value:
                     duration: 35
-                    position: hook
+                    position: other
                     item: util:lava_effect
-                    y: 0
-                    x: 0
-                    z: 0
             priority_2:
               conditions:
                 lava-fishing: false
@@ -102,11 +138,8 @@ mechanics:
                   type: fake-item
                   value:
                     duration: 35
-                    position: hook
+                    position: other
                     item: util:water_effect
-                    y: 0
-                    x: 0
-                    z: 0
 
   # Global properties which would help you reduce duplicated lines
   global-loot-property:
@@ -121,16 +154,51 @@ mechanics:
     enable: true
     # Fishing bag container title
     bag-title: '<blue>{player}''s Fishing Bag</blue>'
-    # Can fishing bag store fishing loots?
-    can-store-loot: false
     # Other whitelist-items
     whitelist-items:
       - fishing_rod
 
+    # Can fishing bag store fishing loots?
+    can-store-loot: false
+    # Requirements for automatically collecting
+    collect-requirements:
+      permission: fishingbag.collectloot
+    # Actions to do if fishing loots are automatically collected into bag
+    collect-actions:
+      sound_action:
+        type: sound
+        value:
+          key: "minecraft:item.armor.equip_leather"
+          source: 'player'
+          volume: 1
+          pitch: 1
+      hologram_action:
+        type: hologram
+        value:
+          duration: 40
+          text: '{nick} <#B0E0E6><b>has been stored into bag</#B0E0E6>'
+          position: other
+          y: 1
+    # Actions to do if the fishing bag is full
+    full-actions:
+      conditional_action:
+        type: conditional
+        value:
+          conditions:
+            condition_1:
+              type: cooldown
+              value:
+                key: fishing_bag_full_notice
+                time: 60000
+          actions:
+            message_action:
+              type: message
+              value: "<#EEE8AA>[Fishing Bag]</#EEE8AA> Your fishing bag has been full."
+
   # Fishing wait time
   # This section would take effect if you set "override-vanilla" to true
   # That also means vanilla mechanics for example lure enchantment
-  # would not longer take effect, so you have to configurate its effect
+  # would no longer take effect, so you have to configurate its effect
   # in enchantment effects.
   fishing-wait-time:
     # override vanilla mechanic
@@ -151,19 +219,6 @@ mechanics:
     # Some effects would increase/decrease size so the option decides whether they could ignore the limit
     restricted-size-range: true
 
-    ###### WARNING: THIS IS NOT AN IMPLEMENTED FEATURE AND MIGHT BE REMOVED IN THE FUTURE ######
-    # It's only available for developers to test for the moment.
-    # This feature requires much work on preventing dupe, counting price, merging dropped items,
-    # clicks in inventory, hopper transferring and lore updating...
-    # It might be removed if dupes or has bad performance.
-    ## Allow players to stack fish with different sizes
-    #allow-stack: false
-    ## Lore format
-    #lore-format:
-    #  - ''
-    #  - 'Total Size: {0}cm'
-    #############################################################################################
-
   # Competition settings
   competition:
     # Use redis for cross server data synchronization
@@ -172,6 +227,9 @@ mechanics:
     server-group: default
     # Increase this value would allow you to use more placeholders like {4_player} {5_score} in sacrifice of some performance
     placeholder-limit: 3
+
+  # If a player could get multiple loots from fishing, should the loots spawn at the same time or have delays for each (tick)
+  multiple-loot-spawn-delay: 4
 
 # Other settings
 other-settings:
@@ -204,7 +262,11 @@ other-settings:
 
   # Requires PlaceholderAPI to work
   placeholder-register:
+    '{record}': '%fishingstats_size-record_{loot}%'
+    # Requires server expansion
     '{date}': '%server_time_yyyy-MM-dd-HH:mm:ss%'
+    # Requires player expansion
+    '{yaw}': '%player_yaw%'
 
   # CustomFishing supports using items/blocks from other plugins
   # If items share the same id, they would inherit the effects

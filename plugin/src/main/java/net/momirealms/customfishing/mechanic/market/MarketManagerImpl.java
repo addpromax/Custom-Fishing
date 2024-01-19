@@ -30,7 +30,6 @@ import net.momirealms.customfishing.api.scheduler.CancellableTask;
 import net.momirealms.customfishing.api.util.LogUtils;
 import net.momirealms.customfishing.compatibility.papi.PlaceholderManagerImpl;
 import net.momirealms.customfishing.util.ConfigUtils;
-import net.objecthunter.exp4j.Expression;
 import net.objecthunter.exp4j.ExpressionBuilder;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -117,12 +116,12 @@ public class MarketManagerImpl implements MarketManager, Listener {
     private void loadConfig() {
         YamlConfiguration config = plugin.getConfig("market.yml");
         this.enable = config.getBoolean("enable", true);
+        this.formula = config.getString("price-formula", "{base} + {bonus} * {size}");
         if (!this.enable) return;
 
         // Load various configuration settings
         this.layout = config.getStringList("layout").toArray(new String[0]);
         this.title = config.getString("title", "market.title");
-        this.formula = config.getString("price-formula", "{base} + {bonus} * {size}");
         this.itemSlot = config.getString("item-slot.symbol", "I").charAt(0);
         this.functionSlot = config.getString("functional-icons.symbol", "B").charAt(0);
         this.functionIconAllowBuilder = plugin.getItemManager().getItemBuilder(config.getConfigurationSection("functional-icons.allow-icon"), "gui", "allow");
@@ -291,10 +290,12 @@ public class MarketManagerImpl implements MarketManager, Listener {
 
             if (element.getSymbol() == functionSlot) {
                 double worth = gui.getTotalWorth();
+                int amount = gui.getSoldAmount();
                 double earningLimit = getEarningLimit(player);
                 Condition condition = new Condition(player, new HashMap<>(Map.of(
                         "{money}", String.format("%.2f", worth)
                         ,"{rest}", String.format("%.2f", (earningLimit - data.earnings))
+                        ,"{sold-item-amount}", String.valueOf(amount)
                 )));
                 if (worth > 0) {
                     if (earningLimit != -1 && (earningLimit - data.earnings) < worth) {
@@ -427,20 +428,16 @@ public class MarketManagerImpl implements MarketManager, Listener {
     /**
      * Calculates the price based on a formula with provided variables.
      *
-     * @param base  The base value for the formula.
-     * @param bonus The bonus value for the formula.
-     * @param size  The size value for the formula.
      * @return The calculated price based on the formula and provided variables.
      */
     @Override
-    public double getFishPrice(float base, float bonus, float size) {
-        Expression expression = new ExpressionBuilder(getFormula())
-                .variables("base", "bonus", "size")
-                .build()
-                .setVariable("base", base)
-                .setVariable("bonus", bonus)
-                .setVariable("size", size);
-        return expression.evaluate();
+    public double getFishPrice(Player player, Map<String, String> vars) {
+        String temp = PlaceholderManagerImpl.getInstance().parse(player, formula, vars);
+        var placeholders = PlaceholderManagerImpl.getInstance().detectPlaceholders(temp);
+        for (String placeholder : placeholders) {
+            temp = temp.replace(placeholder, "0");
+        }
+        return new ExpressionBuilder(temp).build().evaluate();
     }
 
     /**

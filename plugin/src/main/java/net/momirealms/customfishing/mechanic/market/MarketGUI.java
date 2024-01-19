@@ -255,7 +255,7 @@ public class MarketGUI {
         for (int slot : itemElement.getSlots()) {
             ItemStack itemStack = inventory.getItem(slot);
             if (itemStack != null && itemStack.getType() != Material.AIR) {
-                ItemUtils.giveCertainAmountOfItem(owner, itemStack, itemStack.getAmount());
+                ItemUtils.giveItem(owner, itemStack, itemStack.getAmount());
                 inventory.setItem(slot, new ItemStack(Material.AIR));
             }
         }
@@ -267,5 +267,21 @@ public class MarketGUI {
      */
     public EarningData getEarningData() {
         return earningData;
+    }
+
+    public int getSoldAmount() {
+        int amount = 0;
+        MarketGUIElement itemElement = getElement(manager.getItemSlot());
+        if (itemElement == null) {
+            return amount;
+        }
+        for (int slot : itemElement.getSlots()) {
+            ItemStack itemStack = inventory.getItem(slot);
+            double money = manager.getItemPrice(itemStack);
+            if (money > 0 && itemStack != null) {
+                amount += itemStack.getAmount();
+            }
+        }
+        return amount;
     }
 }

@@ -43,9 +43,9 @@ dependencies {
     compileOnly("com.github.Zrips:Jobs:4.17.2")
     compileOnly("com.github.Archy-X:AureliumSkills:Beta1.3.21")
     compileOnly("com.github.MilkBowl:VaultAPI:1.7")
-    compileOnly("org.betonquest:betonquest:2.0.0-SNAPSHOT")
-    compileOnly("xyz.xenondevs.invui:invui:1.23")
-    compileOnly("com.github.Xiao-MoMi:Custom-Crops:3.3.1.8")
+    compileOnly("org.betonquest:betonquest:2.0.0")
+    compileOnly("xyz.xenondevs.invui:invui:1.24")
+    compileOnly("com.github.Xiao-MoMi:Custom-Crops:3.3.1.10")
 
     // local jars
     compileOnly(files("libs/AdvancedEnchantments-api.jar"))
@@ -60,10 +60,10 @@ dependencies {
     implementation(project(":api"))
 
     // adventure
-    implementation("net.kyori:adventure-api:4.14.0")
+    implementation("net.kyori:adventure-api:4.15.0")
     implementation("net.kyori:adventure-platform-bukkit:4.3.1")
-    implementation("net.kyori:adventure-text-minimessage:4.14.0")
-    implementation("net.kyori:adventure-text-serializer-legacy:4.14.0")
+    implementation("net.kyori:adventure-text-minimessage:4.15.0")
+    implementation("net.kyori:adventure-text-serializer-legacy:4.15.0")
 
     // nbt
     implementation("de.tr7zw:item-nbt-api:2.12.2")

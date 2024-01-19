@@ -132,11 +132,14 @@ public abstract class AbstractSQLDatabase extends AbstractStorage {
             statement.setString(1, uuid.toString());
             ResultSet rs = statement.executeQuery();
             if (rs.next()) {
-                int lockValue = rs.getInt(2);
-                if (lockValue != 0 && getCurrentSeconds() - CFConfig.dataSaveInterval <= lockValue) {
-                    connection.close();
-                    future.complete(Optional.of(PlayerData.LOCKED));
-                    return;
+                if (lock) {
+                    int lockValue = rs.getInt(2);
+                    if (lockValue != 0 && getCurrentSeconds() - CFConfig.dataSaveInterval <= lockValue) {
+                        connection.close();
+                        future.complete(Optional.of(PlayerData.LOCKED));
+                        LogUtils.warn("Player " + uuid + "'s data is locked. Retrying...");
+                        return;
+                    }
                 }
                 final Blob blob = rs.getBlob("data");
                 final byte[] dataByteArray = blob.getBytes(1, (int) blob.length());

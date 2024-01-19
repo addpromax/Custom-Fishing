@@ -329,6 +329,7 @@ public class FishingManagerImpl implements Listener, FishingManager {
             new BaitAnimationTask(plugin, player, fishHook, cloned);
             baitItem.setAmount(baitItem.getAmount() - 1);
         }
+
         // Arrange hook check task
         this.hookCheckMap.put(player.getUniqueId(), new HookCheckTimerTask(this, fishHook, fishingPreparation, initialEffect));
         // trigger actions
@@ -416,20 +417,21 @@ public class FishingManagerImpl implements Listener, FishingManager {
                 // put vanilla loot in map
                 this.vanillaLootMap.put(uuid, Pair.of(item.getItemStack(), event.getExpToDrop()));
             }
-            loot.triggerActions(ActionTrigger.HOOK, temp.getPreparation());
-            temp.getPreparation().triggerActions(ActionTrigger.HOOK);
+            var fishingPreparation = temp.getPreparation();
+            loot.triggerActions(ActionTrigger.HOOK, fishingPreparation);
+            fishingPreparation.triggerActions(ActionTrigger.HOOK);
             if (!loot.disableGame()) {
                 // start the game if the loot has a game
-
-                if (startFishingGame(player, temp.getPreparation(), temp.getEffect())) {
+                if (startFishingGame(player, fishingPreparation, temp.getEffect())) {
                     event.setCancelled(true);
                 }
             } else {
+                var hook = event.getHook();
                 // If the game is disabled, then do success actions
-                success(temp, event.getHook());
+                success(temp, hook);
                 // Cancel the event because loots can be multiple and unique
                 event.setCancelled(true);
-                event.getHook().remove();
+                hook.remove();
             }
             return;
         }
@@ -455,14 +457,20 @@ public class FishingManagerImpl implements Listener, FishingManager {
         TempFishingState temp = getTempFishingState(uuid);
         if (temp != null) {
             var loot = temp.getLoot();
+            var fishingPreparation = temp.getPreparation();
+            fishingPreparation.setLocation(event.getHook().getLocation());
 
-            loot.triggerActions(ActionTrigger.BITE, temp.getPreparation());
-            temp.getPreparation().triggerActions(ActionTrigger.BITE);
+            if (!loot.disableGlobalAction())
+                GlobalSettings.triggerLootActions(ActionTrigger.BITE, fishingPreparation);
+            loot.triggerActions(ActionTrigger.BITE, fishingPreparation);
+            fishingPreparation.triggerActions(ActionTrigger.BITE);
 
             if (loot.instanceGame() && !loot.disableGame()) {
-                loot.triggerActions(ActionTrigger.HOOK, temp.getPreparation());
-                temp.getPreparation().triggerActions(ActionTrigger.HOOK);
-                startFishingGame(player, temp.getPreparation(), temp.getEffect());
+                if (!loot.disableGlobalAction())
+                    GlobalSettings.triggerLootActions(ActionTrigger.HOOK, fishingPreparation);
+                loot.triggerActions(ActionTrigger.HOOK, fishingPreparation);
+                fishingPreparation.triggerActions(ActionTrigger.HOOK);
+                startFishingGame(player, fishingPreparation, temp.getEffect());
             }
         }
     }
@@ -497,11 +505,14 @@ public class FishingManagerImpl implements Listener, FishingManager {
             var temp = getTempFishingState(uuid);
             if (temp != null ) {
                 Loot loot = temp.getLoot();
-                loot.triggerActions(ActionTrigger.HOOK, temp.getPreparation());
-                temp.getPreparation().triggerActions(ActionTrigger.HOOK);
+                var fishingPreparation = temp.getPreparation();
+                if (!loot.disableGlobalAction())
+                    GlobalSettings.triggerLootActions(ActionTrigger.HOOK, fishingPreparation);
+                loot.triggerActions(ActionTrigger.HOOK, fishingPreparation);
+                fishingPreparation.triggerActions(ActionTrigger.HOOK);
                 if (!loot.disableGame()) {
                     event.setCancelled(true);
-                    startFishingGame(player, temp.getPreparation(), temp.getEffect());
+                    startFishingGame(player, fishingPreparation, temp.getEffect());
                 } else {
                     success(temp, event.getHook());
                 }
@@ -547,14 +558,6 @@ public class FishingManagerImpl implements Listener, FishingManager {
         gamingPlayerMap.remove(uuid);
         plugin.getScheduler().runTaskSync(() -> {
 
-            if (player.getGameMode() != GameMode.CREATIVE) {
-                ItemStack rod = tempFishingState.getPreparation().getRodItemStack();
-                plugin.getScheduler().runTaskSyncLater(() -> {
-                    ItemUtils.decreaseHookDurability(rod, 1, false);
-                    ItemUtils.decreaseDurability(player, rod, 1, true);
-                }, player.getLocation(), 1);
-            }
-
             if (gamingPlayer.isSuccessful()) {
                 success(tempFishingState, fishHook);
             } else {
@@ -591,11 +594,14 @@ public class FishingManagerImpl implements Listener, FishingManager {
             return;
         }
 
-        GlobalSettings.triggerLootActions(ActionTrigger.FAILURE, fishingPreparation);
+        if (!loot.disableGlobalAction())
+            GlobalSettings.triggerLootActions(ActionTrigger.FAILURE, fishingPreparation);
         loot.triggerActions(ActionTrigger.FAILURE, fishingPreparation);
         fishingPreparation.triggerActions(ActionTrigger.FAILURE);
 
-        ItemUtils.decreaseHookDurability(fishingPreparation.getRodItemStack(), 1, true);
+        if (state.getPreparation().getPlayer().getGameMode() != GameMode.CREATIVE) {
+            ItemUtils.decreaseHookDurability(fishingPreparation.getRodItemStack(), 1, true);
+        }
     }
 
     /**
@@ -641,30 +647,45 @@ public class FishingManagerImpl implements Listener, FishingManager {
                     if (pair != null) {
                         fishingPreparation.insertArg("{nick}", "<lang:item.minecraft." + pair.left().getType().toString().toLowerCase() + ">");
                         for (int i = 0; i < amount; i++) {
-                            plugin.getItemManager().dropItem(hook.getLocation(), player.getLocation(), pair.left().clone());
-                            doSuccessActions(loot, effect, fishingPreparation, player);
-                            if (pair.right() > 0) {
-                                player.giveExp(pair.right(), true);
-                                AdventureManagerImpl.getInstance().sendSound(player, Sound.Source.PLAYER, Key.key("minecraft:entity.experience_orb.pickup"), 1, 1);
-                            }
+                            plugin.getScheduler().runTaskSyncLater(() -> {
+                                plugin.getItemManager().dropItem(player, hook.getLocation(), player.getLocation(), pair.left().clone(), fishingPreparation);
+                                doSuccessActions(loot, effect, fishingPreparation, player);
+                                if (pair.right() > 0) {
+                                    player.giveExp(pair.right(), true);
+                                    AdventureManagerImpl.getInstance().sendSound(player, Sound.Source.PLAYER, Key.key("minecraft:entity.experience_orb.pickup"), 1, 1);
+                                }
+                            }, hook.getLocation(), (long) CFConfig.multipleLootSpawnDelay * i);
                         }
                     }
                 } else {
                     for (int i = 0; i < amount; i++) {
-                        plugin.getItemManager().dropItem(player, hook.getLocation(), player.getLocation(), loot.getID(), fishingPreparation.getArgs());
-                        doSuccessActions(loot, effect, fishingPreparation, player);
+                        plugin.getScheduler().runTaskSyncLater(() -> {
+                            ItemStack item = plugin.getItemManager().build(player, "item", loot.getID(), fishingPreparation.getArgs());
+                            if (item == null) {
+                                LogUtils.warn(String.format("Item %s not exists", loot.getID()));
+                                return;
+                            }
+                            plugin.getItemManager().dropItem(player, hook.getLocation(), player.getLocation(), item, fishingPreparation);
+                            doSuccessActions(loot, effect, fishingPreparation, player);
+                        }, hook.getLocation(), (long) CFConfig.multipleLootSpawnDelay * i);
                     }
                 }
-                return;
             }
             case ENTITY -> {
                 plugin.getEntityManager().summonEntity(hook.getLocation(), player.getLocation(), loot);
+                doSuccessActions(loot, effect, fishingPreparation, player);
             }
             case BLOCK -> {
                 plugin.getBlockManager().summonBlock(player, hook.getLocation(), player.getLocation(), loot);
+                doSuccessActions(loot, effect, fishingPreparation, player);
             }
         }
-        doSuccessActions(loot, effect, fishingPreparation, player);
+
+        if (player.getGameMode() != GameMode.CREATIVE) {
+            ItemStack rod = state.getPreparation().getRodItemStack();
+            ItemUtils.decreaseHookDurability(rod, 1, false);
+            ItemUtils.decreaseDurability(player, rod, 1, true);
+        }
     }
 
     /**
@@ -678,41 +699,43 @@ public class FishingManagerImpl implements Listener, FishingManager {
     private void doSuccessActions(Loot loot, Effect effect, FishingPreparation fishingPreparation, Player player) {
         FishingCompetition competition = plugin.getCompetitionManager().getOnGoingCompetition();
         if (competition != null) {
-            String scoreStr = fishingPreparation.getArg("{SCORE}");
+            String scoreStr = fishingPreparation.getArg("{CUSTOM_SCORE}");
             if (scoreStr != null) {
                 competition.refreshData(player, Double.parseDouble(scoreStr));
             } else {
+                double score = 0;
                 switch (competition.getGoal()) {
                     case CATCH_AMOUNT -> {
-                        fishingPreparation.insertArg("{score}", "1.00");
-                        competition.refreshData(player, 1);
+                        score = 1;
+                        competition.refreshData(player, score);
                     }
                     case MAX_SIZE, TOTAL_SIZE -> {
-                        String size = fishingPreparation.getArg("{size}");
+                        String size = fishingPreparation.getArg("{SIZE}");
                         if (size != null) {
-                            double score = Double.parseDouble(size);
-                            fishingPreparation.insertArg("{score}", String.format("%.2f", score));
+                            score = Double.parseDouble(size);
                             competition.refreshData(player, score);
                         } else {
-                            fishingPreparation.insertArg("{score}", "0.00");
+                            score = 0;
                         }
                     }
                     case TOTAL_SCORE -> {
-                        double score = loot.getScore();
-                        if (score != 0) {
-                            double finalScore = score * effect.getScoreMultiplier() + effect.getScore();
-                            fishingPreparation.insertArg("{score}", String.format("%.2f", finalScore));
-                            competition.refreshData(player, finalScore);
+                        score = loot.getScore();
+                        if (score > 0) {
+                            score = score * effect.getScoreMultiplier() + effect.getScore();
+                            competition.refreshData(player, score);
                         } else {
-                            fishingPreparation.insertArg("{score}", "0.00");
+                            score = 0;
                         }
                     }
                 }
+                fishingPreparation.insertArg("{score}", String.format("%.2f", score));
+                fishingPreparation.insertArg("{SCORE}", String.valueOf(score));
             }
         }
 
         // events and actions
-        GlobalSettings.triggerLootActions(ActionTrigger.SUCCESS, fishingPreparation);
+        if (!loot.disableGlobalAction())
+            GlobalSettings.triggerLootActions(ActionTrigger.SUCCESS, fishingPreparation);
         loot.triggerActions(ActionTrigger.SUCCESS, fishingPreparation);
         fishingPreparation.triggerActions(ActionTrigger.SUCCESS);
 
@@ -725,7 +748,16 @@ public class FishingManagerImpl implements Listener, FishingManager {
             Optional.ofNullable(
                     plugin.getStatisticsManager()
                           .getStatistics(player.getUniqueId())
-            ).ifPresent(it -> it.addLootAmount(loot, fishingPreparation, 1));
+            ).ifPresent(it -> {
+                it.addLootAmount(loot, fishingPreparation, 1);
+                String size = fishingPreparation.getArg("{SIZE}");
+                if (size != null)
+                    if (it.setSizeIfHigher(loot.getStatisticKey().getSizeKey(), Float.parseFloat(size))) {
+                        if (!loot.disableGlobalAction())
+                            GlobalSettings.triggerLootActions(ActionTrigger.NEW_SIZE_RECORD, fishingPreparation);
+                        loot.triggerActions(ActionTrigger.NEW_SIZE_RECORD, fishingPreparation);
+                    }
+            });
     }
 
     /**
@@ -742,7 +774,7 @@ public class FishingManagerImpl implements Listener, FishingManager {
         String random = WeightUtils.getRandom(gameWithWeight);
         Pair<BasicGameConfig, GameInstance> gamePair = plugin.getGameManager().getGameInstance(random);
         if (random == null) {
-            plugin.debug("No game is available for player:" + player.getName() + " location:" + condition.getLocation());
+            LogUtils.warn("No game is available for player:" + player.getName() + " location:" + condition.getLocation());
             return false;
         }
         if (gamePair == null) {

@@ -17,6 +17,8 @@
 
 package net.momirealms.customfishing.adventure;
 
+import com.comphenix.protocol.PacketType;
+import com.comphenix.protocol.events.PacketContainer;
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.platform.bukkit.BukkitAudiences;
@@ -25,9 +27,10 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
-import net.kyori.adventure.title.Title;
+import net.momirealms.customfishing.CustomFishingPluginImpl;
 import net.momirealms.customfishing.api.CustomFishingPlugin;
 import net.momirealms.customfishing.api.manager.AdventureManager;
+import net.momirealms.customfishing.api.util.LogUtils;
 import net.momirealms.customfishing.api.util.ReflectionUtils;
 import net.momirealms.customfishing.setting.CFConfig;
 import net.momirealms.customfishing.setting.CFLocale;
@@ -37,7 +40,6 @@ import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.entity.Player;
 
 import java.lang.reflect.InvocationTargetException;
-import java.time.Duration;
 
 public class AdventureManagerImpl implements AdventureManager {
 
@@ -60,6 +62,9 @@ public class AdventureManagerImpl implements AdventureManager {
 
     @Override
     public Component getComponentFromMiniMessage(String text) {
+        if (text == null) {
+            return Component.empty();
+        }
         if (CFConfig.legacyColorSupport) {
             return MiniMessage.miniMessage().deserialize(legacyToMiniMessage(text));
         } else {
@@ -97,22 +102,37 @@ public class AdventureManagerImpl implements AdventureManager {
 
     @Override
     public void sendTitle(Player player, String title, String subtitle, int in, int duration, int out) {
-        Audience au = adventure.player(player);
-        Title.Times times = Title.Times.times(Duration.ofMillis(in), Duration.ofMillis(duration), Duration.ofMillis(out));
-        au.showTitle(Title.title(getComponentFromMiniMessage(title), getComponentFromMiniMessage(subtitle), times));
+        sendTitle(player, getComponentFromMiniMessage(title), getComponentFromMiniMessage(subtitle), in, duration, out);
     }
 
     @Override
     public void sendTitle(Player player, Component title, Component subtitle, int in, int duration, int out) {
-        Audience au = adventure.player(player);
-        Title.Times times = Title.Times.times(Duration.ofMillis(in), Duration.ofMillis(duration), Duration.ofMillis(out));
-        au.showTitle(Title.title(title, subtitle, times));
+        try {
+            PacketContainer titlePacket = new PacketContainer(PacketType.Play.Server.SET_TITLE_TEXT);
+            titlePacket.getModifier().write(0, getIChatComponent(componentToJson(title)));
+            PacketContainer subTitlePacket = new PacketContainer(PacketType.Play.Server.SET_SUBTITLE_TEXT);
+            subTitlePacket.getModifier().write(0, getIChatComponent(componentToJson(subtitle)));
+            PacketContainer timePacket = new PacketContainer(PacketType.Play.Server.SET_TITLES_ANIMATION);
+            timePacket.getIntegers().write(0, in);
+            timePacket.getIntegers().write(1, duration);
+            timePacket.getIntegers().write(2, out);
+            CustomFishingPluginImpl.getProtocolManager().sendServerPacket(player, titlePacket);
+            CustomFishingPluginImpl.getProtocolManager().sendServerPacket(player, subTitlePacket);
+            CustomFishingPluginImpl.getProtocolManager().sendServerPacket(player, timePacket);
+        } catch (InvocationTargetException | IllegalAccessException e) {
+            LogUtils.warn("Error occurred when sending title");
+        }
     }
 
     @Override
     public void sendActionbar(Player player, String s) {
-        Audience au = adventure.player(player);
-        au.sendActionBar(getComponentFromMiniMessage(s));
+        try {
+            PacketContainer packet = new PacketContainer(PacketType.Play.Server.SET_ACTION_BAR_TEXT);
+            packet.getModifier().write(0, getIChatComponent(componentToJson(getComponentFromMiniMessage(s))));
+            CustomFishingPluginImpl.getProtocolManager().sendServerPacket(player, packet);
+        } catch (InvocationTargetException | IllegalAccessException e) {
+            LogUtils.warn("Error occurred when sending actionbar");
+        }
     }
 
     @Override
@@ -160,7 +180,7 @@ public class AdventureManagerImpl implements AdventureManager {
                 case 'f' -> stringBuilder.append("<white>");
                 case 'r' -> stringBuilder.append("<r><!i>");
                 case 'l' -> stringBuilder.append("<b>");
-                case 'm' -> stringBuilder.append("<s>");
+                case 'm' -> stringBuilder.append("<st>");
                 case 'o' -> stringBuilder.append("<i>");
                 case 'n' -> stringBuilder.append("<u>");
                 case 'k' -> stringBuilder.append("<o>");
@@ -222,5 +242,9 @@ public class AdventureManagerImpl implements AdventureManager {
             return null;
         }
         return cp;
+    }
+
+    public Object getIChatComponent(String json) throws InvocationTargetException, IllegalAccessException {
+        return ReflectionUtils.iChatComponentMethod.invoke(null, json);
     }
 }

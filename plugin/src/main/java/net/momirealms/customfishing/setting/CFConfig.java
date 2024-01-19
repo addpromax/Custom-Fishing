@@ -26,8 +26,6 @@ import dev.dejvokep.boostedyaml.settings.updater.UpdaterSettings;
 import net.momirealms.customfishing.api.CustomFishingPlugin;
 import net.momirealms.customfishing.api.util.LogUtils;
 import net.momirealms.customfishing.api.util.OffsetUtils;
-import net.momirealms.customfishing.util.ConfigUtils;
-import org.bukkit.Material;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.event.EventPriority;
 
@@ -40,7 +38,7 @@ import java.util.Objects;
 public class CFConfig {
 
     // config version
-    public static String configVersion = "31";
+    public static String configVersion = "32";
     // Debug mode
     public static boolean debug;
     // language
@@ -66,9 +64,6 @@ public class CFConfig {
 
     // fishing bag
     public static boolean enableFishingBag;
-    public static boolean bagStoreLoots;
-    public static String bagTitle;
-    public static List<Material> bagWhiteListItems;
 
     // Fishing wait time
     public static boolean overrideVanilla;
@@ -80,7 +75,7 @@ public class CFConfig {
 
     // Competition
     public static boolean redisRanking;
-    public static List<String> serverGroup;
+    public static String serverGroup;
     public static int placeholderLimit;
 
     // Data save interval
@@ -90,8 +85,6 @@ public class CFConfig {
     public static boolean logDataSaving;
 
     public static boolean restrictedSizeRange;
-    public static boolean allowSizeStack;
-    public static List<String> sizeStackLore;
 
     // Legacy color code support
     public static boolean legacyColorSupport;
@@ -102,6 +95,8 @@ public class CFConfig {
     public static boolean globalDisableStats;
     public static boolean globalDisableGame;
     public static boolean globalInstantGame;
+
+    public static int multipleLootSpawnDelay;
 
     public static void load() {
         try {
@@ -120,6 +115,8 @@ public class CFConfig {
                             .addIgnoredRoute(configVersion, "mechanics.mechanic-requirements", '.')
                             .addIgnoredRoute(configVersion, "mechanics.global-events", '.')
                             .addIgnoredRoute(configVersion, "mechanics.global-effects", '.')
+                            .addIgnoredRoute(configVersion, "mechanics.fishing-bag.collect-actions", '.')
+                            .addIgnoredRoute(configVersion, "mechanics.fishing-bag.full-actions", '.')
                             .addIgnoredRoute(configVersion, "other-settings.placeholder-register", '.')
                             .build()
             );
@@ -145,9 +142,6 @@ public class CFConfig {
         blockDetectOrder = config.getStringList("other-settings.block-detection-order");
 
         enableFishingBag = config.getBoolean("mechanics.fishing-bag.enable", true);
-        bagTitle = config.getString("mechanics.fishing-bag.bag-title");
-        bagStoreLoots = config.getBoolean("mechanics.fishing-bag.can-store-loot", false);
-        bagWhiteListItems = config.getStringList("mechanics.fishing-bag.whitelist-items").stream().map(it -> Material.valueOf(it.toUpperCase(Locale.ENGLISH))).toList();
 
         overrideVanilla = config.getBoolean("mechanics.fishing-wait-time.override-vanilla", false);
         waterMinTime = config.getInt("mechanics.fishing-wait-time.min-wait-time", 100);
@@ -157,8 +151,6 @@ public class CFConfig {
         lavaMaxTime = config.getInt("mechanics.lava-fishing.max-wait-time", 600);
 
         restrictedSizeRange = config.getBoolean("mechanics.size.restricted-size-range", true);
-        allowSizeStack = config.getBoolean("mechanics.size.allow-stack", false);
-        sizeStackLore = config.getStringList("mechanics.size.lore-format").stream().map(it -> "<!i>" + it).toList();
 
         globalShowInFinder = config.getBoolean("mechanics.global-loot-property.show-in-fishfinder", true);
         globalDisableStats = config.getBoolean("mechanics.global-loot-property.disable-stat", false);
@@ -167,7 +159,9 @@ public class CFConfig {
 
         redisRanking = config.getBoolean("mechanics.competition.redis-ranking", false);
         placeholderLimit = config.getInt("mechanics.competition.placeholder-limit", 3);
-        serverGroup = ConfigUtils.stringListArgs(config.get("mechanics.competition.server-group","default"));
+        serverGroup = config.getString("mechanics.competition.server-group","default");
+
+        multipleLootSpawnDelay = config.getInt("mechanics.multiple-loot-spawn-delay", 0);
 
         dataSaveInterval = config.getInt("other-settings.data-saving-interval", 600);
         logDataSaving = config.getBoolean("other-settings.log-data-saving", true);

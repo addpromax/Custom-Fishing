@@ -24,7 +24,6 @@ import net.momirealms.customfishing.api.mechanic.condition.Condition;
 import org.bukkit.configuration.ConfigurationSection;
 
 import java.util.HashMap;
-import java.util.List;
 
 public interface ActionManager {
 
@@ -121,5 +120,9 @@ public interface ActionManager {
      * @param actions   The list of actions to trigger.
      * @param condition The condition associated with the actions.
      */
-    void triggerActions(List<Action> actions, Condition condition);
+    static void triggerActions(Condition condition, Action... actions) {
+        if (actions != null)
+            for (Action action : actions)
+                action.trigger(condition);
+    }
 }

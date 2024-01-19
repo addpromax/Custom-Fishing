@@ -26,6 +26,7 @@ import net.momirealms.customfishing.api.mechanic.loot.CFLoot;
 import net.momirealms.customfishing.api.mechanic.loot.Loot;
 import net.momirealms.customfishing.api.mechanic.loot.LootType;
 import net.momirealms.customfishing.api.mechanic.loot.WeightModifier;
+import net.momirealms.customfishing.api.mechanic.statistic.StatisticsKey;
 import net.momirealms.customfishing.api.util.LogUtils;
 import net.momirealms.customfishing.api.util.WeightUtils;
 import net.momirealms.customfishing.mechanic.requirement.RequirementManagerImpl;
@@ -241,8 +242,13 @@ public class LootManagerImpl implements LootManager {
                         groupMembers.add(loot.getID());
                     }
                 }
-                if (section.contains("requirements")) {
-
+                // legacy format support
+                if (section.contains("requirements") && section.contains("weight")) {
+                    plugin.getRequirementManager().putLegacyLootToMap(
+                            loot.getID(),
+                            plugin.getRequirementManager().getRequirements(section.getConfigurationSection("requirements"), false),
+                            section.getDouble("weight", 0)
+                    );
                 }
             }
         }
@@ -263,11 +269,13 @@ public class LootManagerImpl implements LootManager {
                 .disableGames(section.getBoolean("disable-game", CFConfig.globalDisableGame))
                 .instantGame(section.getBoolean("instant-game", CFConfig.globalInstantGame))
                 .showInFinder(section.getBoolean("show-in-fishfinder", CFConfig.globalShowInFinder))
+                .disableGlobalActions(section.getBoolean("disable-global-event", false))
                 .score(section.getDouble("score"))
                 .lootGroup(ConfigUtils.stringListArgs(section.get("group")).toArray(new String[0]))
                 .nick(section.getString("nick", section.getString("display.name", key)))
                 .addActions(plugin.getActionManager().getActionMap(section.getConfigurationSection("events")))
                 .addTimesActions(plugin.getActionManager().getTimesActionMap(section.getConfigurationSection("events.success-times")))
+                .statsKey(new StatisticsKey(section.getString("statistics.amount", key), section.getString("statistics.size", key)))
                 .build();
     }
 }
