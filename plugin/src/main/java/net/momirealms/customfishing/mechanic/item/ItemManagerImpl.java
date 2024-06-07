@@ -18,7 +18,7 @@
 package net.momirealms.customfishing.mechanic.item;
 
 import de.tr7zw.changeme.nbtapi.*;
-import net.momirealms.customfishing.adventure.AdventureManagerImpl;
+import net.momirealms.customfishing.adventure.AdventureHelper;
 import net.momirealms.customfishing.api.CustomFishingPlugin;
 import net.momirealms.customfishing.api.common.Key;
 import net.momirealms.customfishing.api.common.Pair;
@@ -47,11 +47,14 @@ import net.momirealms.customfishing.compatibility.papi.PlaceholderManagerImpl;
 import net.momirealms.customfishing.setting.CFConfig;
 import net.momirealms.customfishing.util.ConfigUtils;
 import net.momirealms.customfishing.util.ItemUtils;
+import net.momirealms.customfishing.util.LocationUtils;
 import net.momirealms.customfishing.util.NBTUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.block.Block;
+import org.bukkit.block.Skull;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.enchantments.Enchantment;
@@ -61,6 +64,8 @@ import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.*;
+import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.inventory.InventoryPickupItemEvent;
 import org.bukkit.event.inventory.PrepareAnvilEvent;
 import org.bukkit.event.player.PlayerAttemptPickupItemEvent;
@@ -71,6 +76,8 @@ import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.Damageable;
+import org.bukkit.persistence.PersistentDataContainer;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.util.Vector;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -78,6 +85,7 @@ import org.jetbrains.annotations.Nullable;
 import java.io.File;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 
 public class ItemManagerImpl implements ItemManager, Listener {
 
@@ -85,12 +93,15 @@ public class ItemManagerImpl implements ItemManager, Listener {
     private final CustomFishingPlugin plugin;
     private final HashMap<Key, BuildableItem> buildableItemMap;
     private final HashMap<String, ItemLibrary> itemLibraryMap;
+    private ItemLibrary[] itemDetectionArray;
+    private NamespacedKey blockKey;
 
     public ItemManagerImpl(CustomFishingPlugin plugin) {
         instance = this;
         this.plugin = plugin;
         this.itemLibraryMap = new LinkedHashMap<>();
         this.buildableItemMap = new HashMap<>();
+        this.blockKey = NamespacedKey.fromString("block", plugin);
         this.registerItemLibrary(new CustomFishingItemImpl());
         this.registerItemLibrary(new VanillaItemImpl());
     }
@@ -98,6 +109,7 @@ public class ItemManagerImpl implements ItemManager, Listener {
     public void load() {
         this.loadItemsFromPluginFolder();
         Bukkit.getPluginManager().registerEvents(this, plugin);
+        this.resetItemDetectionOrder();
     }
 
     public void unload() {
@@ -109,6 +121,17 @@ public class ItemManagerImpl implements ItemManager, Listener {
                 tempMap.put(entry.getKey(), entry.getValue());
             }
         }
+    }
+
+    private void resetItemDetectionOrder() {
+        ArrayList<ItemLibrary> list = new ArrayList<>();
+        for (String plugin : CFConfig.itemDetectOrder) {
+            ItemLibrary library = itemLibraryMap.get(plugin);
+            if (library != null) {
+                list.add(library);
+            }
+        }
+        this.itemDetectionArray = list.toArray(new ItemLibrary[0]);
     }
 
     public Collection<String> getItemLibraries() {
@@ -249,13 +272,10 @@ public class ItemManagerImpl implements ItemManager, Listener {
     public String getAnyPluginItemID(ItemStack itemStack) {
         if (itemStack == null || itemStack.getType() == Material.AIR)
             return "AIR";
-        for (String plugin : CFConfig.itemDetectOrder) {
-            ItemLibrary itemLibrary = itemLibraryMap.get(plugin);
-            if (itemLibrary != null) {
-                String id = itemLibrary.getItemID(itemStack);
-                if (id != null) {
-                    return id;
-                }
+        for (ItemLibrary library : itemDetectionArray) {
+            String id = library.getItemID(itemStack);
+            if (id != null) {
+                return id;
             }
         }
         // should not reach this because vanilla library would always work
@@ -350,6 +370,7 @@ public class ItemManagerImpl implements ItemManager, Listener {
                 .randomDamage(section.getBoolean("random-durability", false))
                 .unbreakable(section.getBoolean("unbreakable", false))
                 .preventGrabbing(section.getBoolean("prevent-grabbing", true))
+                .placeable(section.getBoolean("placeable", false))
                 .head(section.getString("head64"))
                 .name(section.getString("display.name"))
                 .lore(section.getStringList("display.lore"));
@@ -413,6 +434,7 @@ public class ItemManagerImpl implements ItemManager, Listener {
     public boolean registerItemLibrary(ItemLibrary itemLibrary) {
         if (itemLibraryMap.containsKey(itemLibrary.identification())) return false;
         itemLibraryMap.put(itemLibrary.identification(), itemLibrary);
+        this.resetItemDetectionOrder();
         return true;
     }
 
@@ -424,7 +446,10 @@ public class ItemManagerImpl implements ItemManager, Listener {
      */
     @Override
     public boolean unRegisterItemLibrary(String identification) {
-        return itemLibraryMap.remove(identification) != null;
+        boolean success = itemLibraryMap.remove(identification) != null;
+        if (success)
+            this.resetItemDetectionOrder();
+        return success;
     }
 
     @Override
@@ -469,6 +494,13 @@ public class ItemManagerImpl implements ItemManager, Listener {
             itemEntity.remove();
             return;
         }
+
+        itemEntity.setInvulnerable(true);
+        plugin.getScheduler().runTaskAsyncLater(() -> {
+            if (itemEntity.isValid()) {
+                itemEntity.setInvulnerable(false);
+            }
+        }, 1, TimeUnit.SECONDS);
 
         Vector vector = playerLocation.subtract(hookLocation).toVector().multiply(0.105);
         vector = vector.setY((vector.getY() + 0.22) * 1.18);
@@ -553,8 +585,8 @@ public class ItemManagerImpl implements ItemManager, Listener {
             if (name == null) return this;
             editors.put("name", (player, nbtItem, placeholders) -> {
                 NBTCompound displayCompound = nbtItem.getOrCreateCompound("display");
-                displayCompound.setString("Name", AdventureManagerImpl.getInstance().componentToJson(
-                        AdventureManagerImpl.getInstance().getComponentFromMiniMessage(
+                displayCompound.setString("Name", AdventureHelper.getInstance().componentToJson(
+                        AdventureHelper.getInstance().getComponentFromMiniMessage(
                                 "<!i>" + PlaceholderManagerImpl.getInstance().parse(player, name, placeholders)
                         )
                 ));
@@ -597,14 +629,24 @@ public class ItemManagerImpl implements ItemManager, Listener {
         }
 
         @Override
+        public ItemBuilder placeable(boolean placeable) {
+            editors.put("placeable", (player, nbtItem, placeholders) -> {
+                if (!placeable) return;
+                NBTCompound cfCompound = nbtItem.getOrCreateCompound("CustomFishing");
+                cfCompound.setByte("placeable", (byte) 1);
+            });
+            return this;
+        }
+
+        @Override
         public ItemBuilder lore(List<String> lore) {
             if (lore.size() == 0) return this;
             editors.put("lore", (player, nbtItem, placeholders) -> {
                 NBTCompound displayCompound = nbtItem.getOrCreateCompound("display");
                 NBTList<String> list = displayCompound.getStringList("Lore");
                 list.clear();
-                list.addAll(lore.stream().map(s -> AdventureManagerImpl.getInstance().componentToJson(
-                        AdventureManagerImpl.getInstance().getComponentFromMiniMessage(
+                list.addAll(lore.stream().map(s -> AdventureHelper.getInstance().componentToJson(
+                        AdventureHelper.getInstance().getComponentFromMiniMessage(
                                 "<!i>" + PlaceholderManagerImpl.getInstance().parse(player, s, placeholders)
                         )
                 )).toList());
@@ -676,8 +718,9 @@ public class ItemManagerImpl implements ItemManager, Listener {
             if (enchantments.size() == 0 || amountPairs.size() == 0) return this;
             editors.put("enchantment-pool", (player, nbtItem, placeholders) -> {
                 List<Pair<Integer, Double>> parsedAmountPair = new ArrayList<>(amountPairs.size());
+                Map<String, String> map = new HashMap<>();
                 for (Pair<Integer, Value> rawValue : amountPairs) {
-                    parsedAmountPair.add(Pair.of(rawValue.left(), rawValue.right().get(player)));
+                    parsedAmountPair.add(Pair.of(rawValue.left(), rawValue.right().get(player, map)));
                 }
 
                 int amount = WeightUtils.getRandom(parsedAmountPair);
@@ -688,7 +731,7 @@ public class ItemManagerImpl implements ItemManager, Listener {
 
                 List<Pair<Pair<String, Short>, Double>> cloned = new ArrayList<>(enchantments.size());
                 for (Pair<Pair<String, Short>, Value> rawValue : enchantments) {
-                    cloned.add(Pair.of(rawValue.left(), rawValue.right().get(player)));
+                    cloned.add(Pair.of(rawValue.left(), rawValue.right().get(player, map)));
                 }
 
                 int i = 0;
@@ -863,9 +906,8 @@ public class ItemManagerImpl implements ItemManager, Listener {
      *
      * @param event The PlayerAttemptPickupItemEvent.
      */
-    @EventHandler
+    @EventHandler (ignoreCancelled = true)
     public void onPickUp(PlayerAttemptPickupItemEvent event) {
-        if (event.isCancelled()) return;
         ItemStack itemStack = event.getItem().getItemStack();
         NBTItem nbtItem = new NBTItem(itemStack);
         if (!nbtItem.hasTag("owner")) return;
@@ -882,9 +924,8 @@ public class ItemManagerImpl implements ItemManager, Listener {
      *
      * @param event The InventoryPickupItemEvent.
      */
-    @EventHandler
-    public void onMove(InventoryPickupItemEvent event) {
-        if (event.isCancelled()) return;
+    @EventHandler (ignoreCancelled = true)
+    public void onInvPickItem(InventoryPickupItemEvent event) {
         ItemStack itemStack = event.getItem().getItemStack();
         NBTItem nbtItem = new NBTItem(itemStack);
         if (!nbtItem.hasTag("owner")) return;
@@ -897,9 +938,8 @@ public class ItemManagerImpl implements ItemManager, Listener {
      *
      * @param event The PlayerItemConsumeEvent.
      */
-    @EventHandler
+    @EventHandler (ignoreCancelled = true)
     public void onConsumeItem(PlayerItemConsumeEvent event) {
-        if (event.isCancelled()) return;
         ItemStack itemStack = event.getItem();
         String id = getAnyPluginItemID(itemStack);
         Loot loot = plugin.getLootManager().getLoot(id);
@@ -916,7 +956,7 @@ public class ItemManagerImpl implements ItemManager, Listener {
      *
      * @param event The PrepareAnvilEvent.
      */
-    @EventHandler
+    @EventHandler (ignoreCancelled = true)
     public void onRepairItem(PrepareAnvilEvent event) {
         ItemStack result = event.getInventory().getResult();
         if (result == null || result.getType() == Material.AIR) return;
@@ -936,9 +976,8 @@ public class ItemManagerImpl implements ItemManager, Listener {
      *
      * @param event The PlayerItemMendEvent.
      */
-    @EventHandler
+    @EventHandler (ignoreCancelled = true)
     public void onMending(PlayerItemMendEvent event) {
-        if (event.isCancelled()) return;
         ItemStack itemStack = event.getItem();
         NBTItem nbtItem = new NBTItem(itemStack);
         NBTCompound compound = nbtItem.getCompound("CustomFishing");
@@ -953,7 +992,7 @@ public class ItemManagerImpl implements ItemManager, Listener {
      * @param event The PlayerInteractEvent.
      */
     @EventHandler
-    public void onInteractWithUtils(PlayerInteractEvent event) {
+    public void onInteractWithItems(PlayerInteractEvent event) {
         if (event.useItemInHand() == Event.Result.DENY)
             return;
         if (event.getHand() != EquipmentSlot.HAND)
@@ -964,16 +1003,122 @@ public class ItemManagerImpl implements ItemManager, Listener {
         if (event.getAction() != org.bukkit.event.block.Action.RIGHT_CLICK_AIR && event.getAction() != org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK)
             return;
         String id = getAnyPluginItemID(itemStack);
-        EffectCarrier carrier = plugin.getEffectManager().getEffectCarrier("util", id);
-        if (carrier == null)
-            return;
         Condition condition = new Condition(event.getPlayer());
-        if (!RequirementManager.isRequirementMet(condition, carrier.getRequirements()))
+
+        Loot loot = plugin.getLootManager().getLoot(id);
+        if (loot != null) {
+            loot.triggerActions(ActionTrigger.INTERACT, condition);
             return;
-        Action[] actions = carrier.getActions(ActionTrigger.INTERACT);
-        if (actions != null)
-            for (Action action : actions) {
-                action.trigger(condition);
+        }
+
+        // because the id can be from other plugins, so we can't infer the type of the item
+        for (String type : List.of("util", "bait", "hook")) {
+            EffectCarrier carrier = plugin.getEffectManager().getEffectCarrier(type, id);
+            if (carrier != null) {
+                Action[] actions = carrier.getActions(ActionTrigger.INTERACT);
+                if (actions != null)
+                    for (Action action : actions) {
+                        action.trigger(condition);
+                    }
+                break;
             }
+        }
+    }
+
+    @EventHandler (ignoreCancelled = true)
+    public void onPlaceBlock(BlockPlaceEvent event) {
+        ItemStack itemStack = event.getItemInHand();
+        if (itemStack.getType() == Material.AIR || itemStack.getAmount() == 0 || !itemStack.hasItemMeta()) {
+            return;
+        }
+
+        NBTItem nbtItem = new NBTItem(itemStack);
+        NBTCompound compound = nbtItem.getCompound("CustomFishing");
+        if (compound != null) {
+
+            if (!compound.hasTag("placeable") || compound.getByte("placeable") != 1) {
+                event.setCancelled(true);
+                return;
+            }
+
+            Block block = event.getBlock();
+            if (block.getState() instanceof Skull) {
+                PersistentDataContainer pdc = block.getChunk().getPersistentDataContainer();
+                ItemStack cloned = itemStack.clone();
+                cloned.setAmount(1);
+                pdc.set(new NamespacedKey(plugin, LocationUtils.toChunkPosString(block.getLocation())), PersistentDataType.STRING, ItemUtils.toBase64(cloned));
+            } else {
+                event.setCancelled(true);
+            }
+        }
+    }
+
+    @EventHandler (ignoreCancelled = true)
+    public void onBreakBlock(BlockBreakEvent event) {
+        final Block block = event.getBlock();
+        if (block.getState() instanceof Skull) {
+            PersistentDataContainer pdc = block.getChunk().getPersistentDataContainer();
+            String base64 = pdc.get(new NamespacedKey(plugin, LocationUtils.toChunkPosString(block.getLocation())), PersistentDataType.STRING);
+            if (base64 != null) {
+                ItemStack itemStack = ItemUtils.fromBase64(base64);
+                event.setDropItems(false);
+                block.getLocation().getWorld().dropItemNaturally(block.getLocation(), itemStack);
+            }
+        }
+    }
+
+    @EventHandler (ignoreCancelled = true)
+    public void onPiston(BlockPistonExtendEvent event) {
+        for (Block block : event.getBlocks()) {
+            if (block.getState() instanceof Skull) {
+                PersistentDataContainer pdc = block.getChunk().getPersistentDataContainer();
+                if (pdc.has(new NamespacedKey(plugin, LocationUtils.toChunkPosString(block.getLocation())), PersistentDataType.STRING)) {
+                    event.setCancelled(true);
+                    return;
+                }
+            }
+        }
+    }
+
+    @EventHandler (ignoreCancelled = true)
+    public void onPiston(BlockPistonRetractEvent event) {
+        for (Block block : event.getBlocks()) {
+            if (block.getState() instanceof Skull) {
+                PersistentDataContainer pdc = block.getChunk().getPersistentDataContainer();
+                if (pdc.has(new NamespacedKey(plugin, LocationUtils.toChunkPosString(block.getLocation())), PersistentDataType.STRING)) {
+                    event.setCancelled(true);
+                    return;
+                }
+            }
+        }
+    }
+
+    @EventHandler (ignoreCancelled = true)
+    public void onExplosion(BlockExplodeEvent event) {
+        handleExplode(event.blockList());
+    }
+
+    @EventHandler (ignoreCancelled = true)
+    public void onExplosion(EntityExplodeEvent event) {
+        handleExplode(event.blockList());
+    }
+
+    private void handleExplode(List<Block> blocks) {
+        ArrayList<Block> blockToRemove = new ArrayList<>();
+        for (Block block : blocks) {
+            if (block.getState() instanceof Skull) {
+                PersistentDataContainer pdc = block.getChunk().getPersistentDataContainer();
+                var nk = new NamespacedKey(plugin, LocationUtils.toChunkPosString(block.getLocation()));
+                String base64 = pdc.get(nk, PersistentDataType.STRING);
+                if (base64 != null) {
+                    ItemStack itemStack = ItemUtils.fromBase64(base64);
+                    block.getLocation().getWorld().dropItemNaturally(block.getLocation(), itemStack);
+                    blockToRemove.add(block);
+                    block.setType(Material.AIR);
+                    pdc.remove(nk);
+                }
+            }
+        }
+        blocks.removeAll(blockToRemove);
     }
 }

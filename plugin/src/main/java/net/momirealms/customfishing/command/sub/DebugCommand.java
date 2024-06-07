@@ -24,8 +24,7 @@ import dev.jorel.commandapi.StringTooltip;
 import dev.jorel.commandapi.arguments.ArgumentSuggestions;
 import dev.jorel.commandapi.arguments.BooleanArgument;
 import dev.jorel.commandapi.arguments.StringArgument;
-import net.momirealms.biomeapi.BiomeAPI;
-import net.momirealms.customfishing.adventure.AdventureManagerImpl;
+import net.momirealms.customfishing.adventure.AdventureHelper;
 import net.momirealms.customfishing.api.CustomFishingPlugin;
 import net.momirealms.customfishing.api.integration.SeasonInterface;
 import net.momirealms.customfishing.api.manager.AdventureManager;
@@ -33,8 +32,10 @@ import net.momirealms.customfishing.api.mechanic.condition.FishingPreparation;
 import net.momirealms.customfishing.api.mechanic.effect.EffectCarrier;
 import net.momirealms.customfishing.api.mechanic.effect.EffectModifier;
 import net.momirealms.customfishing.api.mechanic.effect.FishingEffect;
+import net.momirealms.customfishing.mechanic.fishing.FishingPreparationImpl;
 import net.momirealms.customfishing.util.ConfigUtils;
 import net.momirealms.customfishing.util.NBTUtils;
+import net.momirealms.sparrow.heart.SparrowHeart;
 import org.bukkit.Material;
 import org.bukkit.inventory.ItemStack;
 
@@ -63,14 +64,14 @@ public class DebugCommand {
     public CommandAPICommand getBiomeCommand() {
         return new CommandAPICommand("biome")
                 .executesPlayer((player, arg) -> {
-                    AdventureManagerImpl.getInstance().sendMessage(player, BiomeAPI.getBiome(player.getLocation()));
+                    AdventureHelper.getInstance().sendMessage(player, SparrowHeart.getInstance().getBiomeResourceLocation(player.getLocation()));
                 });
     }
 
     public CommandAPICommand getLocationCommand() {
         return new CommandAPICommand("location")
                 .executesPlayer((player, arg) -> {
-                    AdventureManagerImpl.getInstance().sendMessage(player, player.getLocation().toString());
+                    AdventureHelper.getInstance().sendMessage(player, player.getLocation().toString());
                 });
     }
 
@@ -83,7 +84,7 @@ public class DebugCommand {
                     ArrayList<String> list = new ArrayList<>();
                     ConfigUtils.mapToReadableStringList(NBTUtils.compoundToMap(new NBTItem(item)), list, 0, false);
                     for (String line : list) {
-                        AdventureManagerImpl.getInstance().sendMessage(player, line);
+                        AdventureHelper.getInstance().sendMessage(player, line);
                     }
                 });
     }
@@ -93,10 +94,10 @@ public class DebugCommand {
                 .executesPlayer((player, arg) -> {
                     SeasonInterface seasonInterface = CustomFishingPlugin.get().getIntegrationManager().getSeasonInterface();
                     if (seasonInterface == null) {
-                        AdventureManagerImpl.getInstance().sendMessageWithPrefix(player, "NO SEASON PLUGIN");
+                        AdventureHelper.getInstance().sendMessageWithPrefix(player, "NO SEASON PLUGIN");
                         return;
                     }
-                    AdventureManagerImpl.getInstance().sendMessage(player, seasonInterface.getSeason(player.getLocation().getWorld()));
+                    AdventureHelper.getInstance().sendMessage(player, seasonInterface.getSeason(player.getLocation().getWorld()));
                 });
     }
 
@@ -111,7 +112,7 @@ public class DebugCommand {
                         for (String key : groups) {
                             stringJoiner.add(key);
                         }
-                    AdventureManagerImpl.getInstance().sendMessageWithPrefix(sender, "<white>Group<gold>{" + group + "}<yellow>[" + stringJoiner + "]");
+                    AdventureHelper.getInstance().sendMessageWithPrefix(sender, "<white>Group<gold>{" + group + "}<yellow>[" + stringJoiner + "]");
                 });
     }
 
@@ -126,7 +127,7 @@ public class DebugCommand {
                         for (String key : cs) {
                             stringJoiner.add(key);
                         }
-                    AdventureManagerImpl.getInstance().sendMessageWithPrefix(sender, "<white>Category<gold>{" + c + "}<yellow>[" + stringJoiner + "]");
+                    AdventureHelper.getInstance().sendMessageWithPrefix(sender, "<white>Category<gold>{" + c + "}<yellow>[" + stringJoiner + "]");
                 });
     }
 
@@ -139,11 +140,11 @@ public class DebugCommand {
                         })))
                 .executesPlayer((player, arg) -> {
                     if (player.getInventory().getItemInMainHand().getType() != Material.FISHING_ROD) {
-                        AdventureManagerImpl.getInstance().sendMessageWithPrefix(player, "<red>Please hold a fishing rod before using this command.");
+                        AdventureHelper.getInstance().sendMessageWithPrefix(player, "<red>Please hold a fishing rod before using this command.");
                         return;
                     }
                     FishingEffect initialEffect = CustomFishingPlugin.get().getEffectManager().getInitialEffect();
-                    FishingPreparation fishingPreparation = new FishingPreparation(player, CustomFishingPlugin.get());
+                    FishingPreparation fishingPreparation = new FishingPreparationImpl(player, CustomFishingPlugin.get());
                     boolean inLava = (boolean) arg.getOrDefault("lava fishing", false);
                     fishingPreparation.insertArg("{lava}", String.valueOf(inLava));
                     fishingPreparation.mergeEffect(initialEffect);
@@ -164,7 +165,7 @@ public class DebugCommand {
                     }
                     LootWithWeight[] lootArray = loots.toArray(new LootWithWeight[0]);
                     quickSort(lootArray, 0,lootArray.length - 1);
-                    AdventureManager adventureManager = AdventureManagerImpl.getInstance();
+                    AdventureManager adventureManager = AdventureHelper.getInstance();
                     adventureManager.sendMessage(player, "<red>---------- results ---------");
                     for (LootWithWeight loot : lootArray) {
                         adventureManager.sendMessage(player, loot.key() + ": <gold>" + String.format("%.2f", loot.weight()*100/sum) + "% <gray>(" + String.format("%.2f", loot.weight()) + ")");

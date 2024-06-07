@@ -15,11 +15,12 @@
  *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package net.momirealms.customfishing.api.mechanic.loot;
+package net.momirealms.customfishing.util;
 
-import org.bukkit.entity.Player;
+public class NumberUtils {
 
-public interface WeightModifier {
-
-    double modify(Player player, double weight);
+    public static String money(double money) {
+        String str = String.format("%.2f", money);
+        return str.replace(",", ".");
+    }
 }

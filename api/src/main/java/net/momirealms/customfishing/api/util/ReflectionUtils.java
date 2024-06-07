@@ -37,23 +37,41 @@ public class ReflectionUtils {
     public static Class<?> bukkitClass;
 
     public static void load() {
-        try {
-            Class<?> bar = Class.forName("net.minecraft.network.protocol.game.PacketPlayOutBoss");
-            Field remove = bar.getDeclaredField("f");
-            remove.setAccessible(true);
-            removeBossBarPacket = remove.get(null);
-            Class<?> packetBossClassF = Class.forName("net.minecraft.network.protocol.game.PacketPlayOutBoss$f");
-            progressConstructor = packetBossClassF.getDeclaredConstructor(float.class);
-            progressConstructor.setAccessible(true);
-            Class<?> packetBossClassE = Class.forName("net.minecraft.network.protocol.game.PacketPlayOutBoss$e");
-            updateConstructor = packetBossClassE.getDeclaredConstructor(MinecraftReflection.getIChatBaseComponentClass());
-            updateConstructor.setAccessible(true);
-            iChatComponentMethod = MinecraftReflection.getChatSerializerClass().getMethod("a", String.class);
-            iChatComponentMethod.setAccessible(true);
-        } catch (ClassNotFoundException | NoSuchFieldException | IllegalAccessException | NoSuchMethodException exception) {
-            LogUtils.severe("Error occurred when loading reflections", exception);
-            exception.printStackTrace();
-            return;
+        if (CustomFishingPlugin.get().getVersionManager().isMojmap()) {
+            try {
+                Class<?> bar = Class.forName("net.minecraft.network.protocol.game.ClientboundBossEventPacket");
+                Field remove = bar.getDeclaredField("REMOVE_OPERATION");
+                remove.setAccessible(true);
+                removeBossBarPacket = remove.get(null);
+                Class<?> packetBossClassF = Class.forName("net.minecraft.network.protocol.game.ClientboundBossEventPacket$UpdateProgressOperation");
+                progressConstructor = packetBossClassF.getDeclaredConstructor(float.class);
+                progressConstructor.setAccessible(true);
+                Class<?> packetBossClassE = Class.forName("net.minecraft.network.protocol.game.ClientboundBossEventPacket$UpdateNameOperation");
+                updateConstructor = packetBossClassE.getDeclaredConstructor(MinecraftReflection.getIChatBaseComponentClass());
+                updateConstructor.setAccessible(true);
+                Class<?> craftChatMessageClass = Class.forName("org.bukkit.craftbukkit.util.CraftChatMessage");
+                iChatComponentMethod = craftChatMessageClass.getDeclaredMethod("fromJSON", String.class);
+                iChatComponentMethod.setAccessible(true);
+            } catch (ClassNotFoundException | NoSuchFieldException | IllegalAccessException | NoSuchMethodException exception) {
+                LogUtils.severe("Error occurred when loading reflections", exception);
+            }
+        } else {
+            try {
+                Class<?> bar = Class.forName("net.minecraft.network.protocol.game.PacketPlayOutBoss");
+                Field remove = bar.getDeclaredField("f");
+                remove.setAccessible(true);
+                removeBossBarPacket = remove.get(null);
+                Class<?> packetBossClassF = Class.forName("net.minecraft.network.protocol.game.PacketPlayOutBoss$f");
+                progressConstructor = packetBossClassF.getDeclaredConstructor(float.class);
+                progressConstructor.setAccessible(true);
+                Class<?> packetBossClassE = Class.forName("net.minecraft.network.protocol.game.PacketPlayOutBoss$e");
+                updateConstructor = packetBossClassE.getDeclaredConstructor(MinecraftReflection.getIChatBaseComponentClass());
+                updateConstructor.setAccessible(true);
+                iChatComponentMethod = MinecraftReflection.getChatSerializerClass().getMethod("a", String.class);
+                iChatComponentMethod.setAccessible(true);
+            } catch (ClassNotFoundException | NoSuchFieldException | IllegalAccessException | NoSuchMethodException exception) {
+                LogUtils.severe("Error occurred when loading reflections", exception);
+            }
         }
         if (CustomFishingPlugin.get().getVersionManager().isSpigot()) return;
         try {
@@ -65,11 +83,8 @@ public class ReflectionUtils {
             gsonInstance = gsonMethod.invoke(null);
             gsonDeserializeMethod = gsonComponentSerializerImplClass.getMethod("deserialize", String.class);
             gsonDeserializeMethod.setAccessible(true);
-        } catch (ClassNotFoundException exception) {
+        } catch (ClassNotFoundException | NoSuchMethodException | InvocationTargetException | IllegalAccessException exception) {
             LogUtils.severe("Error occurred when loading reflections", exception);
-            exception.printStackTrace();
-        } catch (NoSuchMethodException | InvocationTargetException | IllegalAccessException e) {
-            throw new RuntimeException(e);
         }
     }
 }

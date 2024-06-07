@@ -1,5 +1,5 @@
 /*
- * This file is part of helper, licensed under the MIT License.
+ * This file is part of LuckPerms, licensed under the MIT License.
  *
  *  Copyright (c) lucko (Luck) <luck@lucko.me>
  *  Copyright (c) contributors
@@ -23,51 +23,40 @@
  *  SOFTWARE.
  */
 
-package net.momirealms.customfishing.libraries.libraryloader;
+package net.momirealms.customfishing.libraries.dependencies;
 
-import org.jetbrains.annotations.NotNull;
-
-import java.lang.annotation.*;
+import com.google.gson.JsonElement;
 
 /**
- * Annotation to indicate a required library for a class.
+ * Applies CustomFishing specific behaviour for {@link Dependency}s.
  */
-@Documented
-@Repeatable(MavenLibraries.class)
-@Target(ElementType.TYPE)
-@Retention(RetentionPolicy.RUNTIME)
-public @interface MavenLibrary {
+public class DependencyRegistry {
 
-    /**
-     * The group id of the library
-     *
-     * @return the group id of the library
-     */
-    @NotNull
-    String groupId();
+    public boolean shouldAutoLoad(Dependency dependency) {
+        return switch (dependency) {
+            // all used within 'isolated' classloaders, and are therefore not
+            // relocated.
+            case ASM, ASM_COMMONS, JAR_RELOCATOR, H2_DRIVER, SQLITE_DRIVER -> false;
+            default -> true;
+        };
+    }
 
-    /**
-     * The artifact id of the library
-     *
-     * @return the artifact id of the library
-     */
-    @NotNull
-    String artifactId();
+    @SuppressWarnings("ConstantConditions")
+    public static boolean isGsonRelocated() {
+        return JsonElement.class.getName().startsWith("net.momirealms");
+    }
 
-    /**
-     * The version of the library
-     *
-     * @return the version of the library
-     */
-    @NotNull
-    String version();
+    private static boolean classExists(String className) {
+        try {
+            Class.forName(className);
+            return true;
+        } catch (ClassNotFoundException e) {
+            return false;
+        }
+    }
 
-    /**
-     * The repo where the library can be obtained from
-     *
-     * @return the repo where the library can be obtained from
-     */
-    @NotNull
-    Repository repo() default @Repository(url = "https://repo1.maven.org/maven2");
+    private static boolean slf4jPresent() {
+        return classExists("org.slf4j.Logger") && classExists("org.slf4j.LoggerFactory");
+    }
 
 }

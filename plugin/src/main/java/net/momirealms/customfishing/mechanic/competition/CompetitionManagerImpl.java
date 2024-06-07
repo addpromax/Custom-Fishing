@@ -70,8 +70,9 @@ public class CompetitionManagerImpl implements CompetitionManager {
             this.timerCheckTask.cancel();
         this.commandConfigMap.clear();
         this.timeConfigMap.clear();
-        if (currentCompetition != null && currentCompetition.isOnGoing())
-            currentCompetition.end();
+        if (currentCompetition != null && currentCompetition.isOnGoing()) {
+            plugin.getScheduler().runTaskAsync(() -> currentCompetition.stop(true));
+        }
     }
 
     public void disable() {
@@ -80,7 +81,7 @@ public class CompetitionManagerImpl implements CompetitionManager {
         this.commandConfigMap.clear();
         this.timeConfigMap.clear();
         if (currentCompetition != null && currentCompetition.isOnGoing())
-            currentCompetition.stop();
+            currentCompetition.stop(false);
     }
 
     /**
@@ -129,6 +130,8 @@ public class CompetitionManagerImpl implements CompetitionManager {
                         .minPlayers(section.getInt("min-players", 0))
                         .duration(section.getInt("duration", 300))
                         .rewards(getPrizeActions(section.getConfigurationSection("rewards")))
+                        .requirements(plugin.getRequirementManager().getRequirements(section.getConfigurationSection("participate-requirements"), false))
+                        .joinActions(plugin.getActionManager().getActions(section.getConfigurationSection("participate-actions")))
                         .startActions(plugin.getActionManager().getActions(section.getConfigurationSection("start-actions")))
                         .endActions(plugin.getActionManager().getActions(section.getConfigurationSection("end-actions")))
                         .skipActions(plugin.getActionManager().getActions(section.getConfigurationSection("skip-actions")));
@@ -287,7 +290,7 @@ public class CompetitionManagerImpl implements CompetitionManager {
     private void start(CompetitionConfig config) {
         if (getOnGoingCompetition() != null) {
             // END
-            currentCompetition.end();
+            currentCompetition.end(true);
             plugin.getScheduler().runTaskAsyncLater(() -> {
                 // start one second later
                 this.currentCompetition = new Competition(config);
@@ -295,8 +298,10 @@ public class CompetitionManagerImpl implements CompetitionManager {
             }, 1, TimeUnit.SECONDS);
         } else {
             // start instantly
-            this.currentCompetition = new Competition(config);
-            this.currentCompetition.start();
+            plugin.getScheduler().runTaskAsync(() -> {
+                this.currentCompetition = new Competition(config);
+                this.currentCompetition.start();
+            });
         }
     }
 

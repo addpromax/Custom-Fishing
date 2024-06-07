@@ -23,7 +23,7 @@ import de.tr7zw.changeme.nbtapi.NBTItem;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.sound.Sound;
 import net.momirealms.customfishing.CustomFishingPluginImpl;
-import net.momirealms.customfishing.adventure.AdventureManagerImpl;
+import net.momirealms.customfishing.adventure.AdventureHelper;
 import net.momirealms.customfishing.api.common.Pair;
 import net.momirealms.customfishing.api.event.FishingResultEvent;
 import net.momirealms.customfishing.api.event.LavaFishingEvent;
@@ -152,15 +152,23 @@ public class FishingManagerImpl implements Listener, FishingManager {
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         final Player player = event.getPlayer();
-        this.removeHook(event.getPlayer().getUniqueId());
+        final UUID uuid = player.getUniqueId();
+        this.removeHook(uuid);
         this.removeTempFishingState(player);
+        this.removeHookCheckTask(player);
+        this.vanillaLootMap.remove(uuid);
+        GamingPlayer gamingPlayer = gamingPlayerMap.remove(player.getUniqueId());
+        if (gamingPlayer != null) {
+            gamingPlayer.cancel();
+        }
     }
 
     /**
-     * Known bug: When you fish, both left click air and right click air
+     * Known bug: This is a Minecraft packet limitation
+     * When you fish, both left click air and right click air
      * are triggered. And you can't cancel the left click event.
      */
-    @EventHandler
+    @EventHandler (ignoreCancelled = false)
     public void onLeftClick(PlayerInteractEvent event) {
         if (event.getAction() != Action.LEFT_CLICK_AIR)
             return;
@@ -175,9 +183,8 @@ public class FishingManagerImpl implements Listener, FishingManager {
         }
     }
 
-    @EventHandler
+    @EventHandler (ignoreCancelled = true)
     public void onSwapHand(PlayerSwapHandItemsEvent event) {
-        if (event.isCancelled()) return;
         GamingPlayer gamingPlayer = gamingPlayerMap.get(event.getPlayer().getUniqueId());
         if (gamingPlayer != null) {
             if (gamingPlayer.onSwapHand())
@@ -191,6 +198,17 @@ public class FishingManagerImpl implements Listener, FishingManager {
         GamingPlayer gamingPlayer = gamingPlayerMap.get(event.getPlayer().getUniqueId());
         if (gamingPlayer != null) {
             if (gamingPlayer.onJump())
+                event.setCancelled(true);
+        }
+    }
+
+    @EventHandler
+    public void onSneak(PlayerToggleSneakEvent event) {
+        if (event.isCancelled()) return;
+        if (!event.isSneaking()) return;
+        GamingPlayer gamingPlayer = gamingPlayerMap.get(event.getPlayer().getUniqueId());
+        if (gamingPlayer != null) {
+            if (gamingPlayer.onSneak())
                 event.setCancelled(true);
         }
     }
@@ -290,7 +308,7 @@ public class FishingManagerImpl implements Listener, FishingManager {
      */
     public void onCastRod(PlayerFishEvent event) {
         var player = event.getPlayer();
-        var fishingPreparation = new FishingPreparation(player, plugin);
+        var fishingPreparation = new FishingPreparationImpl(player, plugin);
         if (!fishingPreparation.canFish()) {
             event.setCancelled(true);
             return;
@@ -299,7 +317,7 @@ public class FishingManagerImpl implements Listener, FishingManager {
         if (!RequirementManager.isRequirementMet(
             fishingPreparation, RequirementManagerImpl.mechanicRequirements
         )) {
-            removeTempFishingState(player);
+            this.removeTempFishingState(player);
             return;
         }
         FishingEffect initialEffect = plugin.getEffectManager().getInitialEffect();
@@ -426,6 +444,8 @@ public class FishingManagerImpl implements Listener, FishingManager {
                     event.setCancelled(true);
                 }
             } else {
+                // remove temp state if fishing game not exists
+                this.removeTempFishingState(player);
                 var hook = event.getHook();
                 // If the game is disabled, then do success actions
                 success(temp, hook);
@@ -652,7 +672,7 @@ public class FishingManagerImpl implements Listener, FishingManager {
                                 doSuccessActions(loot, effect, fishingPreparation, player);
                                 if (pair.right() > 0) {
                                     player.giveExp(pair.right(), true);
-                                    AdventureManagerImpl.getInstance().sendSound(player, Sound.Source.PLAYER, Key.key("minecraft:entity.experience_orb.pickup"), 1, 1);
+                                    AdventureHelper.getInstance().sendSound(player, Sound.Source.PLAYER, Key.key("minecraft:entity.experience_orb.pickup"), 1, 1);
                                 }
                             }, hook.getLocation(), (long) CFConfig.multipleLootSpawnDelay * i);
                         }
@@ -698,7 +718,7 @@ public class FishingManagerImpl implements Listener, FishingManager {
      */
     private void doSuccessActions(Loot loot, Effect effect, FishingPreparation fishingPreparation, Player player) {
         FishingCompetition competition = plugin.getCompetitionManager().getOnGoingCompetition();
-        if (competition != null) {
+        if (competition != null && RequirementManager.isRequirementMet(fishingPreparation, competition.getConfig().getRequirements())) {
             String scoreStr = fishingPreparation.getArg("{CUSTOM_SCORE}");
             if (scoreStr != null) {
                 competition.refreshData(player, Double.parseDouble(scoreStr));
@@ -770,7 +790,6 @@ public class FishingManagerImpl implements Listener, FishingManager {
     @Override
     public boolean startFishingGame(Player player, Condition condition, Effect effect) {
         Map<String, Double> gameWithWeight = plugin.getGameManager().getGameWithWeight(condition);
-        plugin.debug(gameWithWeight.toString());
         String random = WeightUtils.getRandom(gameWithWeight);
         Pair<BasicGameConfig, GameInstance> gamePair = plugin.getGameManager().getGameInstance(random);
         if (random == null) {

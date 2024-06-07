@@ -40,6 +40,9 @@ public interface GamingPlayer {
      */
     boolean onSwapHand();
 
+    /**
+     * @return whether to cancel the event
+     */
     boolean onLeftClick();
 
     /**
@@ -51,6 +54,11 @@ public interface GamingPlayer {
      * @return whether to cancel the event
      */
     boolean onJump();
+
+    /**
+     * @return whether to cancel the event
+     */
+    boolean onSneak();
 
     Player getPlayer();
 

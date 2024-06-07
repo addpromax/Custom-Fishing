@@ -24,7 +24,10 @@ import net.momirealms.customfishing.api.util.LogUtils;
 import net.momirealms.customfishing.setting.CFConfig;
 import org.bukkit.Location;
 
-import java.util.concurrent.*;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * A scheduler implementation responsible for scheduling and managing tasks in a multi-threaded environment.
@@ -37,7 +40,7 @@ public class SchedulerImpl implements Scheduler {
 
     public SchedulerImpl(CustomFishingPlugin plugin) {
         this.plugin = plugin;
-        this.syncScheduler = plugin.getVersionManager().isFolia() ?
+        this.syncScheduler = plugin.getVersionManager().hasRegionScheduler() ?
                 new FoliaSchedulerImpl(plugin) : new BukkitSchedulerImpl(plugin);
         this.schedule = new ScheduledThreadPoolExecutor(1);
         this.schedule.setMaximumPoolSize(1);
@@ -84,7 +87,11 @@ public class SchedulerImpl implements Scheduler {
      */
     @Override
     public void runTaskAsync(Runnable runnable) {
-        this.schedule.execute(runnable);
+        try {
+            this.schedule.execute(runnable);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     /**
@@ -111,7 +118,13 @@ public class SchedulerImpl implements Scheduler {
      */
     @Override
     public CancellableTask runTaskAsyncLater(Runnable runnable, long delay, TimeUnit timeUnit) {
-        return new ScheduledTask(schedule.schedule(runnable, delay, timeUnit));
+        return new ScheduledTask(schedule.schedule(() -> {
+            try {
+                runnable.run();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }, delay, timeUnit));
     }
 
     /**
@@ -154,7 +167,13 @@ public class SchedulerImpl implements Scheduler {
      */
     @Override
     public CancellableTask runTaskAsyncTimer(Runnable runnable, long delay, long period, TimeUnit timeUnit) {
-        return new ScheduledTask(schedule.scheduleAtFixedRate(runnable, delay, period, timeUnit));
+        return new ScheduledTask(schedule.scheduleAtFixedRate(() -> {
+            try {
+                runnable.run();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }, delay, period, timeUnit));
     }
 
     /**

@@ -17,7 +17,9 @@
 
 package net.momirealms.customfishing.mechanic.game;
 
-import net.momirealms.customfishing.adventure.AdventureManagerImpl;
+import net.kyori.adventure.key.Key;
+import net.kyori.adventure.sound.Sound;
+import net.momirealms.customfishing.adventure.AdventureHelper;
 import net.momirealms.customfishing.api.CustomFishingPlugin;
 import net.momirealms.customfishing.api.common.Pair;
 import net.momirealms.customfishing.api.manager.GameManager;
@@ -60,6 +62,7 @@ public class GameManagerImpl implements GameManager {
         this.registerHoldV2Game();
         this.registerTensionGame();
         this.registerClickGame();
+        this.registerDanceGame();
         this.registerAccurateClickGame();
         this.registerAccurateClickV2Game();
         this.registerAccurateClickV3Game();
@@ -255,7 +258,7 @@ public class GameManagerImpl implements GameManager {
                                + OffsetUtils.getOffsetChars(pointerOffset + progress)
                                + FontUtils.surroundWithFont(pointerImage, font)
                                + OffsetUtils.getOffsetChars(totalWidth - progress - pointerWidth);
-                    AdventureManagerImpl.getInstance().sendTitle(player, sendTitle, bar,0,10,0);
+                    AdventureHelper.getInstance().sendTitle(player, sendTitle, bar,0,10,0);
                 }
 
                 @Override
@@ -394,7 +397,7 @@ public class GameManagerImpl implements GameManager {
                             + OffsetUtils.getOffsetChars((int) (-barEffectiveWidth - 1 + fish_position))
                             + FontUtils.surroundWithFont(pointerImage, font)
                             + OffsetUtils.getOffsetChars((int) (barEffectiveWidth - fish_position - pointerIconWidth + 1));
-                    AdventureManagerImpl.getInstance().sendTitle(
+                    AdventureHelper.getInstance().sendTitle(
                             player,
                             tip != null && !played ? tip : title.replace("{progress}", progress[(int) ((hold_time / time_requirement) * progress.length)]),
                             bar,
@@ -486,7 +489,7 @@ public class GameManagerImpl implements GameManager {
                             + FontUtils.surroundWithFont((struggling_time > 0 ? strugglingFishImage[struggling_time % strugglingFishImage.length] : fishImage), font)
                             + OffsetUtils.getOffsetChars(barEffectiveWidth - fish_position - fishIconWidth);
                     strain = Math.max(0, Math.min(strain, ultimateTension));
-                    AdventureManagerImpl.getInstance().sendTitle(
+                    AdventureHelper.getInstance().sendTitle(
                             player,
                             tip != null && !played ? tip : title.replace("{tension}", tension[(int) ((strain / ultimateTension) * tension.length)]),
                             bar,
@@ -499,16 +502,301 @@ public class GameManagerImpl implements GameManager {
         }));
     }
 
+    private void registerDanceGame() {
+        this.registerGameType("dance", (section -> {
+
+            var subtitle = section.getString("subtitle", "<gray>Dance to win. Time left <white>{time}s");
+            var leftNot = section.getString("title.left-button");
+            var leftCorrect = section.getString("title.left-button-correct");
+            var leftWrong = section.getString("title.left-button-wrong");
+            var leftCurrent = section.getString("title.left-button-current");
+            var rightNot = section.getString("title.right-button");
+            var rightCorrect = section.getString("title.right-button-correct");
+            var rightWrong = section.getString("title.right-button-wrong");
+            var rightCurrent = section.getString("title.right-button-current");
+
+            var upNot = section.getString("title.up-button");
+            var upCorrect = section.getString("title.up-button-correct");
+            var upWrong = section.getString("title.up-button-wrong");
+            var upCurrent = section.getString("title.up-button-current");
+            var downNot = section.getString("title.down-button");
+            var downCorrect = section.getString("title.down-button-correct");
+            var downWrong = section.getString("title.down-button-wrong");
+            var downCurrent = section.getString("title.down-button-current");
+
+            var maxShown = section.getInt("title.display-amount", 7);
+            var tip = section.getString("tip");
+            var easy = section.getBoolean("easy", false);
+
+            var correctSound = section.getString("sound.correct", "minecraft:block.amethyst_block.hit");
+            var wrongSound = section.getString("sound.wrong", "minecraft:block.anvil.land");
+
+            return (player, fishHook, settings) -> new AbstractGamingPlayer(player, fishHook, settings) {
+
+                private int clickedTimes;
+                private int requiredTimes;
+                private boolean preventFirst = true;
+                // 0 = left / 1 = right / 2 = up / 3 = down
+                private int[] order;
+                boolean fail = false;
+
+                @Override
+                public void arrangeTask() {
+                    requiredTimes = settings.getDifficulty() / 4;
+                    order = new int[requiredTimes];
+                    for (int i = 0; i < requiredTimes; i++) {
+                        order[i] = ThreadLocalRandom.current().nextInt(0, easy ? 2 : 4);
+                    }
+                    this.task = CustomFishingPlugin.get().getScheduler().runTaskAsyncTimer(this, 50, 50, TimeUnit.MILLISECONDS);
+                }
+
+                @Override
+                public void onTick() {
+                    showUI();
+                    if (tip != null) {
+                        AdventureHelper.getInstance().sendActionbar(player, tip);
+                    }
+                }
+
+                @Override
+                public boolean onRightClick() {
+                    preventFirst = true;
+                    if (order[clickedTimes] != 1) {
+                        setGameResult(false);
+                        fail = true;
+                        showUI();
+                        AdventureHelper.getInstance().sendSound(
+                                player,
+                                Sound.Source.PLAYER,
+                                Key.key(wrongSound),
+                                1,
+                                1
+                        );
+                        endGame();
+                        return true;
+                    }
+
+                    AdventureHelper.getInstance().sendSound(
+                            player,
+                            Sound.Source.PLAYER,
+                            Key.key(correctSound),
+                            1,
+                            1
+                    );
+                    clickedTimes++;
+                    if (clickedTimes >= requiredTimes) {
+                        setGameResult(true);
+                        showUI();
+                        endGame();
+                    }
+                    return true;
+                }
+
+                @Override
+                public boolean onJump() {
+                    if (order[clickedTimes] != 2) {
+                        setGameResult(false);
+                        fail = true;
+                        showUI();
+                        AdventureHelper.getInstance().sendSound(
+                                player,
+                                Sound.Source.PLAYER,
+                                Key.key(wrongSound),
+                                1,
+                                1
+                        );
+                        endGame();
+                        return false;
+                    }
+
+                    AdventureHelper.getInstance().sendSound(
+                            player,
+                            Sound.Source.PLAYER,
+                            Key.key(correctSound),
+                            1,
+                            1
+                    );
+                    clickedTimes++;
+                    if (clickedTimes >= requiredTimes) {
+                        setGameResult(true);
+                        showUI();
+                        endGame();
+                    }
+                    return false;
+                }
+
+                @Override
+                public boolean onSneak() {
+                    if (order[clickedTimes] != 3) {
+                        setGameResult(false);
+                        fail = true;
+                        showUI();
+                        AdventureHelper.getInstance().sendSound(
+                                player,
+                                Sound.Source.PLAYER,
+                                Key.key(wrongSound),
+                                1,
+                                1
+                        );
+                        endGame();
+                        return false;
+                    }
+
+                    AdventureHelper.getInstance().sendSound(
+                            player,
+                            Sound.Source.PLAYER,
+                            Key.key(correctSound),
+                            1,
+                            1
+                    );
+                    clickedTimes++;
+                    if (clickedTimes >= requiredTimes) {
+                        setGameResult(true);
+                        showUI();
+                        endGame();
+                    }
+                    return false;
+                }
+
+                @Override
+                public boolean onLeftClick() {
+                    if (preventFirst) {
+                        preventFirst = false;
+                        return false;
+                    }
+
+                    if (order[clickedTimes] != 0) {
+                        setGameResult(false);
+                        fail = true;
+                        showUI();
+                        AdventureHelper.getInstance().sendSound(
+                                player,
+                                Sound.Source.PLAYER,
+                                Key.key(wrongSound),
+                                1,
+                                1
+                        );
+                        endGame();
+                        return true;
+                    }
+
+                    AdventureHelper.getInstance().sendSound(
+                            player,
+                            Sound.Source.PLAYER,
+                            Key.key(correctSound),
+                            1,
+                            1
+                    );
+                    clickedTimes++;
+                    if (clickedTimes >= requiredTimes) {
+                        setGameResult(true);
+                        showUI();
+                        endGame();
+                    }
+                    return false;
+                }
+
+                public void showUI() {
+                    try {
+                        if (requiredTimes <= maxShown) {
+                            StringBuilder sb = new StringBuilder();
+                            for (int x = 0; x < requiredTimes; x++) {
+                                if (x < clickedTimes) {
+                                    switch (order[x]) {
+                                        case 0 -> sb.append(leftCorrect);
+                                        case 1 -> sb.append(rightCorrect);
+                                        case 2 -> sb.append(upCorrect);
+                                        case 3 -> sb.append(downCorrect);
+                                    }
+                                } else if (clickedTimes == x) {
+                                    switch (order[x]) {
+                                        case 0 -> sb.append(fail ? leftWrong : leftCurrent);
+                                        case 1 -> sb.append(fail ? rightWrong : rightCurrent);
+                                        case 2 -> sb.append(fail ? upWrong : upCurrent);
+                                        case 3 -> sb.append(fail ? downWrong : downCurrent);
+                                    }
+                                } else {
+                                    switch (order[x]) {
+                                        case 0 -> sb.append(leftNot);
+                                        case 1 -> sb.append(rightNot);
+                                        case 2 -> sb.append(upNot);
+                                        case 3 -> sb.append(downNot);
+                                    }
+                                }
+                            }
+                            AdventureHelper.getInstance().sendTitle(
+                                    player,
+                                    sb.toString(),
+                                    subtitle.replace("{time}", String.format("%.1f", ((double) deadline - System.currentTimeMillis())/1000)),
+                                    0,
+                                    10,
+                                    0
+                            );
+                        } else {
+                            int half = (maxShown - 1) / 2;
+                            int low = clickedTimes - half;
+                            int high = clickedTimes + half;
+                            if (low < 0) {
+                                high += (-low);
+                                low = 0;
+                            } else if (high >= requiredTimes) {
+                                low -= (high - requiredTimes + 1);
+                                high = requiredTimes - 1;
+                            }
+                            StringBuilder sb = new StringBuilder();
+                            for (int x = low; x < high + 1; x++) {
+                                if (x < clickedTimes) {
+                                    switch (order[x]) {
+                                        case 0 -> sb.append(leftCorrect);
+                                        case 1 -> sb.append(rightCorrect);
+                                        case 2 -> sb.append(upCorrect);
+                                        case 3 -> sb.append(downCorrect);
+                                    }
+                                } else if (clickedTimes == x) {
+                                    switch (order[x]) {
+                                        case 0 -> sb.append(fail ? leftWrong : leftCurrent);
+                                        case 1 -> sb.append(fail ? rightWrong : rightCurrent);
+                                        case 2 -> sb.append(fail ? upWrong : upCurrent);
+                                        case 3 -> sb.append(fail ? downWrong : downCurrent);
+                                    }
+                                } else {
+                                    switch (order[x]) {
+                                        case 0 -> sb.append(leftNot);
+                                        case 1 -> sb.append(rightNot);
+                                        case 2 -> sb.append(upNot);
+                                        case 3 -> sb.append(downNot);
+                                    }
+                                }
+                            }
+                            AdventureHelper.getInstance().sendTitle(
+                                    player,
+                                    sb.toString(),
+                                    subtitle.replace("{time}", String.format("%.1f", ((double) deadline - System.currentTimeMillis())/1000)),
+                                    0,
+                                    10,
+                                    0
+                            );
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+            };
+        }));
+    }
+
     private void registerClickGame() {
         this.registerGameType("click", (section -> {
 
             var title = section.getString("title","<red>{click}");
             var subtitle = section.getString("subtitle", "<gray>Click <white>{clicks} <gray>times to win. Time left <white>{time}s");
+            var left = section.getBoolean("left-click", true);
 
             return (player, fishHook, settings) -> new AbstractGamingPlayer(player, fishHook, settings) {
 
                 private int clickedTimes;
                 private final int requiredTimes = settings.getDifficulty();
+                private boolean preventFirst = true;
 
                 @Override
                 public void arrangeTask() {
@@ -522,16 +810,40 @@ public class GameManagerImpl implements GameManager {
 
                 @Override
                 public boolean onRightClick() {
+                    if (left) {
+                        setGameResult(false);
+                        endGame();
+                        return true;
+                    }
                     clickedTimes++;
                     if (clickedTimes >= requiredTimes) {
+                        showUI();
                         setGameResult(true);
                         endGame();
                     }
                     return true;
                 }
 
+                @Override
+                public boolean onLeftClick() {
+                    if (!left) {
+                        return false;
+                    }
+                    if (preventFirst) {
+                        preventFirst = false;
+                        return false;
+                    }
+                    clickedTimes++;
+                    if (clickedTimes >= requiredTimes) {
+                        showUI();
+                        setGameResult(true);
+                        endGame();
+                    }
+                    return false;
+                }
+
                 public void showUI() {
-                    AdventureManagerImpl.getInstance().sendTitle(
+                    AdventureHelper.getInstance().sendTitle(
                             player,
                             title.replace("{click}", String.valueOf(clickedTimes)),
                             subtitle.replace("{clicks}", String.valueOf(requiredTimes)).replace("{time}", String.format("%.1f", ((double) deadline - System.currentTimeMillis())/1000)),
@@ -607,7 +919,7 @@ public class GameManagerImpl implements GameManager {
                         stringBuilder.append(barBody);
                     }
 
-                    AdventureManagerImpl.getInstance().sendTitle(
+                    AdventureHelper.getInstance().sendTitle(
                             player,
                             stringBuilder.toString(),
                             subtitle,
@@ -683,7 +995,7 @@ public class GameManagerImpl implements GameManager {
                             + OffsetUtils.getOffsetChars(progress + pointerOffset)
                             + FontUtils.surroundWithFont(pointerImage, font)
                             + OffsetUtils.getOffsetChars(barEffectiveWidth - progress - pointerIconWidth + 1);
-                    AdventureManagerImpl.getInstance().sendTitle(
+                    AdventureHelper.getInstance().sendTitle(
                             player,
                             title,
                             bar,
@@ -722,6 +1034,8 @@ public class GameManagerImpl implements GameManager {
             var barImage = section.getString("subtitle.bar");
             var tip = section.getString("tip");
 
+            var left = section.getBoolean("left-click", true);
+
             return (player, fishHook, settings) -> new AbstractGamingPlayer(player, fishHook, settings) {
                 private double hold_time;
                 private double judgement_position;
@@ -731,6 +1045,7 @@ public class GameManagerImpl implements GameManager {
                 private int timer;
                 private final int time_requirement = timeRequirements[ThreadLocalRandom.current().nextInt(timeRequirements.length)] * 1000;
                 private boolean played;
+                private boolean preventFirst = true;
 
                 @Override
                 public void arrangeTask() {
@@ -814,9 +1129,27 @@ public class GameManagerImpl implements GameManager {
 
                 @Override
                 public boolean onRightClick() {
+                    if (left) {
+                        setGameResult(false);
+                        endGame();
+                        return true;
+                    }
                     played = true;
                     fish_velocity = pullingStrength;
                     return true;
+                }
+
+                @Override
+                public boolean onLeftClick() {
+                    if (preventFirst) {
+                        preventFirst = false;
+                        return false;
+                    }
+                    if (left) {
+                        played = true;
+                        fish_velocity = pullingStrength;
+                    }
+                    return false;
                 }
 
                 public void showUI() {
@@ -827,7 +1160,7 @@ public class GameManagerImpl implements GameManager {
                             + OffsetUtils.getOffsetChars((int) (-barEffectiveWidth - 1 + fish_position))
                             + FontUtils.surroundWithFont(pointerImage, font)
                             + OffsetUtils.getOffsetChars((int) (barEffectiveWidth - fish_position - pointerIconWidth + 1));
-                    AdventureManagerImpl.getInstance().sendTitle(
+                    AdventureHelper.getInstance().sendTitle(
                             player,
                             tip != null && !played ? tip : title.replace("{progress}", progress[(int) ((hold_time / time_requirement) * progress.length)]),
                             bar,

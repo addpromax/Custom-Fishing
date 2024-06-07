@@ -17,9 +17,8 @@
 
 package net.momirealms.customfishing.gui.page.file;
 
-import net.momirealms.customfishing.adventure.AdventureManagerImpl;
+import net.momirealms.customfishing.adventure.AdventureHelper;
 import net.momirealms.customfishing.adventure.component.ShadedAdventureComponentWrapper;
-import net.momirealms.customfishing.gui.Icon;
 import net.momirealms.customfishing.gui.icon.BackGroundItem;
 import net.momirealms.customfishing.gui.icon.BackToFolderItem;
 import net.momirealms.customfishing.gui.icon.ScrollDownItem;
@@ -31,10 +30,8 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.jetbrains.annotations.NotNull;
-import xyz.xenondevs.invui.animation.impl.SequentialAnimation;
 import xyz.xenondevs.invui.gui.Gui;
 import xyz.xenondevs.invui.gui.ScrollGui;
-import xyz.xenondevs.invui.gui.SlotElement;
 import xyz.xenondevs.invui.gui.structure.Markers;
 import xyz.xenondevs.invui.item.Item;
 import xyz.xenondevs.invui.item.ItemProvider;
@@ -84,18 +81,18 @@ public class FileSelector {
 
         Window window = Window.single()
                 .setViewer(player)
-                .setTitle(new ShadedAdventureComponentWrapper(AdventureManagerImpl.getInstance().getComponentFromMiniMessage(
+                .setTitle(new ShadedAdventureComponentWrapper(AdventureHelper.getInstance().getComponentFromMiniMessage(
                         CFLocale.GUI_SELECT_FILE
                 )))
                 .setGui(gui)
                 .build();
 
-        gui.playAnimation(new SequentialAnimation(1, true), slotElement -> {
-            if (slotElement instanceof SlotElement.ItemSlotElement itemSlotElement) {
-                return !(itemSlotElement.getItem() instanceof Icon);
-            }
-            return true;
-        });
+//        gui.playAnimation(new SequentialAnimation(1, true), slotElement -> {
+//            if (slotElement instanceof SlotElement.ItemSlotElement itemSlotElement) {
+//                return !(itemSlotElement.getItem() instanceof Icon);
+//            }
+//            return true;
+//        });
 
         window.open();
     }
@@ -110,7 +107,7 @@ public class FileSelector {
 
         @Override
         public ItemProvider getItemProvider() {
-            return new ItemBuilder(Material.PAPER).setDisplayName(new ShadedAdventureComponentWrapper(AdventureManagerImpl.getInstance().getComponentFromMiniMessage(
+            return new ItemBuilder(Material.PAPER).setDisplayName(new ShadedAdventureComponentWrapper(AdventureHelper.getInstance().getComponentFromMiniMessage(
                     "<#FDF5E6>" + file.getName()
             )));
         }
@@ -138,7 +135,7 @@ public class FileSelector {
 
         @Override
         public ItemProvider getItemProvider() {
-            return new ItemBuilder(Material.BOOK).setDisplayName(new ShadedAdventureComponentWrapper(AdventureManagerImpl.getInstance().getComponentFromMiniMessage(
+            return new ItemBuilder(Material.BOOK).setDisplayName(new ShadedAdventureComponentWrapper(AdventureHelper.getInstance().getComponentFromMiniMessage(
                     "<#D2B48C><b>" + file.getName()
             )));
         }

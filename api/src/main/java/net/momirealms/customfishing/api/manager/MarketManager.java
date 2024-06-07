@@ -18,6 +18,7 @@
 package net.momirealms.customfishing.api.manager;
 
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.Map;
@@ -38,6 +39,11 @@ public interface MarketManager {
      */
     int getCachedDate();
 
+    /**
+     * Retrieves the current date as an integer in the format MMDD (e.g., September 21 as 0921).
+     *
+     * @return An integer representing the current date.
+     */
     int getDate();
 
     /**
@@ -70,11 +76,18 @@ public interface MarketManager {
     char getItemSlot();
 
     /**
-     * Gets the character representing the function slot in the MarketGUI.
+     * Gets the character representing the sell slot in the MarketGUI.
      *
-     * @return The function slot character.
+     * @return The sell slot character.
      */
-    char getFunctionSlot();
+    char getSellSlot();
+
+    /**
+     * Gets the character representing the sell-all slot in the MarketGUI.
+     *
+     * @return The sell-all slot character.
+     */
+    char getSellAllSlot();
 
     /**
      * Gets the layout of the MarketGUI as an array of strings.
@@ -103,4 +116,21 @@ public interface MarketManager {
      * @return enable or not
      */
     boolean isEnable();
+
+    /**
+     * Should fish in bag also be sold
+     *
+     * @return sell or not
+     */
+    boolean sellFishingBag();
+
+    /**
+     * Get the total worth of the items in inventory
+     *
+     * @param inventory inventory
+     * @return total worth
+     */
+    double getInventoryTotalWorth(Inventory inventory);
+
+    int getInventorySellAmount(Inventory inventory);
 }

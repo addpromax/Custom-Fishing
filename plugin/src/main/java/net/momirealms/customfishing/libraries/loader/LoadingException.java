@@ -1,5 +1,5 @@
 /*
- * This file is part of helper, licensed under the MIT License.
+ * This file is part of LuckPerms, licensed under the MIT License.
  *
  *  Copyright (c) lucko (Luck) <luck@lucko.me>
  *  Copyright (c) contributors
@@ -23,23 +23,19 @@
  *  SOFTWARE.
  */
 
-package net.momirealms.customfishing.libraries.libraryloader;
-
-import java.lang.annotation.*;
+package net.momirealms.customfishing.libraries.loader;
 
 /**
- * Represents a maven repository.
+ * Runtime exception used if there is a problem during loading
  */
-@Documented
-@Target(ElementType.LOCAL_VARIABLE)
-@Retention(RetentionPolicy.RUNTIME)
-public @interface Repository {
+public class LoadingException extends RuntimeException {
 
-    /**
-     * Gets the base url of the repository.
-     *
-     * @return the base url of the repository
-     */
-    String url();
+    public LoadingException(String message) {
+        super(message);
+    }
+
+    public LoadingException(String message, Throwable cause) {
+        super(message, cause);
+    }
 
 }

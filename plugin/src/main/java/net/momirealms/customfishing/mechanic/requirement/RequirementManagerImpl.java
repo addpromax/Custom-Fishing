@@ -17,7 +17,6 @@
 
 package net.momirealms.customfishing.mechanic.requirement;
 
-import net.momirealms.biomeapi.BiomeAPI;
 import net.momirealms.customfishing.CustomFishingPluginImpl;
 import net.momirealms.customfishing.api.common.Pair;
 import net.momirealms.customfishing.api.integration.LevelInterface;
@@ -35,6 +34,8 @@ import net.momirealms.customfishing.compatibility.VaultHook;
 import net.momirealms.customfishing.compatibility.papi.ParseUtils;
 import net.momirealms.customfishing.util.ClassUtils;
 import net.momirealms.customfishing.util.ConfigUtils;
+import net.momirealms.customfishing.util.MoonPhase;
+import net.momirealms.sparrow.heart.SparrowHeart;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
@@ -58,14 +59,14 @@ public class RequirementManagerImpl implements RequirementManager {
 
     public static Requirement[] mechanicRequirements;
     private final CustomFishingPluginImpl plugin;
-    private final HashMap<String, RequirementFactory> requirementBuilderMap;
+    private final HashMap<String, RequirementFactory> requirementFactoryMap;
     private final LinkedHashMap<String, ConditionalElement> conditionalLootsMap;
     private final LinkedHashMap<String, ConditionalElement> conditionalGamesMap;
     private final String EXPANSION_FOLDER = "expansions/requirement";
 
     public RequirementManagerImpl(CustomFishingPluginImpl plugin) {
         this.plugin = plugin;
-        this.requirementBuilderMap = new HashMap<>();
+        this.requirementFactoryMap = new HashMap<>();
         this.conditionalLootsMap = new LinkedHashMap<>();
         this.conditionalGamesMap = new LinkedHashMap<>();
         this.registerInbuiltRequirements();
@@ -81,7 +82,7 @@ public class RequirementManagerImpl implements RequirementManager {
     }
 
     public void disable() {
-        this.requirementBuilderMap.clear();
+        this.requirementFactoryMap.clear();
         this.conditionalLootsMap.clear();
     }
 
@@ -129,8 +130,8 @@ public class RequirementManagerImpl implements RequirementManager {
      */
     @Override
     public boolean registerRequirement(String type, RequirementFactory requirementFactory) {
-        if (this.requirementBuilderMap.containsKey(type)) return false;
-        this.requirementBuilderMap.put(type, requirementFactory);
+        if (this.requirementFactoryMap.containsKey(type)) return false;
+        this.requirementFactoryMap.put(type, requirementFactory);
         return true;
     }
 
@@ -142,7 +143,7 @@ public class RequirementManagerImpl implements RequirementManager {
      */
     @Override
     public boolean unregisterRequirement(String type) {
-        return this.requirementBuilderMap.remove(type) != null;
+        return this.requirementFactoryMap.remove(type) != null;
     }
 
     /**
@@ -182,6 +183,7 @@ public class RequirementManagerImpl implements RequirementManager {
         this.registerEndWithRequirement();
         this.registerEqualsRequirement();
         this.registerBiomeRequirement();
+        this.registerMoonPhaseRequirement();
         this.registerDateRequirement();
         this.registerPluginLevelRequirement();
         this.registerPermissionRequirement();
@@ -278,8 +280,9 @@ public class RequirementManagerImpl implements RequirementManager {
         return requirements.toArray(new Requirement[0]);
     }
 
+    @Override
     public boolean hasRequirement(String type) {
-        return requirementBuilderMap.containsKey(type);
+        return requirementFactoryMap.containsKey(type);
     }
 
     /**
@@ -347,7 +350,7 @@ public class RequirementManagerImpl implements RequirementManager {
     @Override
     @Nullable
     public RequirementFactory getRequirementFactory(String type) {
-        return requirementBuilderMap.get(type);
+        return requirementFactoryMap.get(type);
     }
 
     private void registerTimeRequirement() {
@@ -364,10 +367,9 @@ public class RequirementManagerImpl implements RequirementManager {
         });
     }
 
-    @SuppressWarnings("all")
     private void registerGroupRequirement() {
         registerRequirement("group", (args, actions, advanced) -> {
-            List<String> arg = (List<String>) args;
+            HashSet<String> arg = new HashSet<>(ConfigUtils.stringListArgs(args));
             return condition -> {
                 String lootID = condition.getArg("{loot}");
                 Loot loot = plugin.getLootManager().getLoot(lootID);
@@ -384,7 +386,7 @@ public class RequirementManagerImpl implements RequirementManager {
             };
         });
         registerRequirement("!group", (args, actions, advanced) -> {
-            List<String> arg = (List<String>) args;
+            HashSet<String> arg = new HashSet<>(ConfigUtils.stringListArgs(args));
             return condition -> {
                 String lootID = condition.getArg("{loot}");
                 Loot loot = plugin.getLootManager().getLoot(lootID);
@@ -406,10 +408,9 @@ public class RequirementManagerImpl implements RequirementManager {
         });
     }
 
-    @SuppressWarnings("unchecked")
     private void registerLootRequirement() {
         registerRequirement("loot", (args, actions, advanced) -> {
-            List<String> arg = (List<String>) args;
+            HashSet<String> arg = new HashSet<>(ConfigUtils.stringListArgs(args));
             return condition -> {
                 String lootID = condition.getArg("{loot}");
                 if (arg.contains(lootID)) return true;
@@ -418,7 +419,7 @@ public class RequirementManagerImpl implements RequirementManager {
             };
         });
         registerRequirement("!loot", (args, actions, advanced) -> {
-            List<String> arg = (List<String>) args;
+            HashSet<String> arg = new HashSet<>(ConfigUtils.stringListArgs(args));
             return condition -> {
                 String lootID = condition.getArg("{loot}");
                 if (!arg.contains(lootID)) return true;
@@ -580,7 +581,7 @@ public class RequirementManagerImpl implements RequirementManager {
         registerRequirement("biome", (args, actions, advanced) -> {
             HashSet<String> biomes = new HashSet<>(ConfigUtils.stringListArgs(args));
             return condition -> {
-                String currentBiome = BiomeAPI.getBiome(condition.getLocation());
+                String currentBiome = SparrowHeart.getInstance().getBiomeResourceLocation(condition.getLocation());
                     if (biomes.contains(currentBiome))
                         return true;
                 if (advanced) triggerActions(actions, condition);
@@ -590,8 +591,31 @@ public class RequirementManagerImpl implements RequirementManager {
         registerRequirement("!biome", (args, actions, advanced) -> {
             HashSet<String> biomes = new HashSet<>(ConfigUtils.stringListArgs(args));
             return condition -> {
-                String currentBiome = BiomeAPI.getBiome(condition.getLocation());
+                String currentBiome = SparrowHeart.getInstance().getBiomeResourceLocation(condition.getLocation());
                 if (!biomes.contains(currentBiome))
+                    return true;
+                if (advanced) triggerActions(actions, condition);
+                return false;
+            };
+        });
+    }
+
+    private void registerMoonPhaseRequirement() {
+        registerRequirement("moon-phase", (args, actions, advanced) -> {
+            HashSet<String> moonPhases = new HashSet<>(ConfigUtils.stringListArgs(args));
+            return condition -> {
+                long days = condition.getLocation().getWorld().getFullTime() / 24_000;
+                if (moonPhases.contains(MoonPhase.getPhase(days).name().toLowerCase(Locale.ENGLISH)))
+                    return true;
+                if (advanced) triggerActions(actions, condition);
+                return false;
+            };
+        });
+        registerRequirement("!moon-phase", (args, actions, advanced) -> {
+            HashSet<String> moonPhases = new HashSet<>(ConfigUtils.stringListArgs(args));
+            return condition -> {
+                long days = condition.getLocation().getWorld().getFullTime() / 24_000;
+                if (!moonPhases.contains(MoonPhase.getPhase(days).name().toLowerCase(Locale.ENGLISH)))
                     return true;
                 if (advanced) triggerActions(actions, condition);
                 return false;
@@ -626,8 +650,8 @@ public class RequirementManagerImpl implements RequirementManager {
             return condition -> {
                 String currentWeather;
                 World world = condition.getLocation().getWorld();
-                if (world.isThundering()) currentWeather = "thunder";
-                else if (world.isClearWeather()) currentWeather = "clear";
+                if (world.isClearWeather()) currentWeather = "clear";
+                else if (world.isThundering()) currentWeather = "thunder";
                 else currentWeather = "rain";
                 for (String weather : weathers)
                     if (weather.equalsIgnoreCase(currentWeather))
@@ -1336,7 +1360,6 @@ public class RequirementManagerImpl implements RequirementManager {
      * Loads requirement expansions from external JAR files located in the expansion folder.
      * Each expansion JAR should contain classes that extends the RequirementExpansion class.
      * Expansions are registered and used to create custom requirements.
-     * If an error occurs while loading or initializing an expansion, a warning message is logged.
      */
     @SuppressWarnings("ResultOfMethodCallIgnored")
     private void loadExpansions() {
