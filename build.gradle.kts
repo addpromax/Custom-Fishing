@@ -21,6 +21,7 @@ allprojects {
 
     repositories {
         mavenCentral()
+        maven("https://plugins.gradle.org/m2/")
         maven("https://maven.aliyun.com/repository/public/")
         maven("https://papermc.io/repo/repository/maven-public/")
         maven("https://oss.sonatype.org/content/groups/public/")
