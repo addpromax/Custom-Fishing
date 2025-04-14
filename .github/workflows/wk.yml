@@ -32,7 +32,7 @@ jobs:
       - name: Extract repository name
         run: echo "NAME=$(basename ${{ github.repository }})" >> $GITHUB_ENV
 
-      - uses: "actions/upload-artifact@v3"
+      - uses: "actions/upload-artifact@v4"
         with:
           name: "cfs"
           path: "target/*.jar"
