@@ -32,11 +32,7 @@ jobs:
       - name: Extract repository name
         run: echo "NAME=$(basename ${{ github.repository }})" >> $GITHUB_ENV
 
-      - name: Upload Build
-        uses: marvinpinto/action-automatic-releases@master
+      - uses: "actions/upload-artifact@v3"
         with:
-          title: "${{ env.NAME }}"
-          automatic_release_tag: "latest"
-          repo_token: "${{ secrets.GITHUB_TOKEN }}"
-          files: "target/*.jar"
-          prerelease: false
+          name: "cfs"
+          path: "target/*.jar"
