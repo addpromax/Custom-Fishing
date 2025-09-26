@@ -212,6 +212,7 @@ public class BukkitRequirementManager implements RequirementManager<Player> {
         this.registerHasPlayerLootRequirement();
         this.registerLootOrderRequirement();
         this.registerIsBedrockPlayerRequirement();
+        this.registerIsNewSizeRecordRequirement();
     }
 
     private void registerIsBedrockPlayerRequirement() {
@@ -333,6 +334,27 @@ public class BukkitRequirementManager implements RequirementManager<Player> {
                 return Requirement.empty();
             }
         }, "item-in-hand");
+        registerRequirement((args, actions, runActions) -> {
+            if (args instanceof Section section) {
+                boolean mainOrOff = section.getString("hand","main").equalsIgnoreCase("main");
+                int amount = section.getInt("amount", 1);
+                List<String> items = ListUtils.toList(section.get("item"));
+                return context -> {
+                    ItemStack itemStack = mainOrOff ?
+                            context.holder().getInventory().getItemInMainHand()
+                            : context.holder().getInventory().getItemInOffHand();
+                    String id = plugin.getItemManager().getItemID(itemStack);
+                    if (!items.contains(id) || itemStack.getAmount() < amount) {
+                        return true;
+                    }
+                    if (runActions) ActionManager.trigger(context, actions);
+                    return false;
+                };
+            } else {
+                plugin.getPluginLogger().warn("Invalid value type: " + args.getClass().getSimpleName() + " found at !item-in-hand requirement which is expected be `Section`");
+                return Requirement.empty();
+            }
+        }, "!item-in-hand");
     }
 
     private void registerPluginLevelRequirement() {
@@ -659,6 +681,19 @@ public class BukkitRequirementManager implements RequirementManager<Player> {
         }, "open-water");
     }
 
+    private void registerIsNewSizeRecordRequirement() {
+        registerRequirement((args, actions, runActions) -> {
+            boolean is = (boolean) args;
+            return context -> {
+                boolean current = Optional.ofNullable(context.arg(ContextKeys.IS_NEW_SIZE_RECORD)).orElse(false);
+                if (is == current)
+                    return true;
+                if (runActions) ActionManager.trigger(context, actions);
+                return false;
+            };
+        }, "new-size-record");
+    }
+
     private void registerHasStatsRequirement() {
         registerRequirement((args, actions, runActions) -> {
             boolean has = (boolean) args;
@@ -774,7 +809,7 @@ public class BukkitRequirementManager implements RequirementManager<Player> {
             int max;
             try {
                 min = Integer.parseInt(split[0]);
-                max = Integer.parseInt(split[0]);
+                max = Integer.parseInt(split[1]);
             } catch (NumberFormatException e) {
                 plugin.getPluginLogger().warn("Invalid number format for range: " + depthRange, e);
                 return Requirement.empty();

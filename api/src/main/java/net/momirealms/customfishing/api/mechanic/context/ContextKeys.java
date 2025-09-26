@@ -22,7 +22,6 @@ import net.momirealms.customfishing.api.mechanic.effect.Effect;
 import net.momirealms.customfishing.api.mechanic.loot.LootType;
 import net.momirealms.customfishing.api.mechanic.totem.ActiveTotemList;
 import org.bukkit.Location;
-import org.bukkit.entity.Entity;
 import org.bukkit.entity.FishHook;
 import org.bukkit.inventory.EquipmentSlot;
 
@@ -44,6 +43,7 @@ public class ContextKeys<T> {
     public static final ContextKeys<LootType> LOOT = of("loot", LootType.class);
     public static final ContextKeys<String> NICK = of("nick", String.class);
     public static final ContextKeys<Boolean> OPEN_WATER = of("open_water", Boolean.class);
+    public static final ContextKeys<Boolean> IS_NEW_SIZE_RECORD = of("is_new_size_record", Boolean.class);
     public static final ContextKeys<Float> SIZE = of("size", Float.class);
     public static final ContextKeys<Double> SIZE_MULTIPLIER = of("size_multiplier", Double.class);
     public static final ContextKeys<Double> SIZE_ADDER = of("size_adder", Double.class);
