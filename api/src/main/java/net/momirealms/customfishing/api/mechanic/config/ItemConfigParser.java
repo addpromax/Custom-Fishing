@@ -58,6 +58,10 @@ public class ItemConfigParser {
                 section.set("nick", section.getString("display.name"));
             }
         }
+        // Extract lore from display.lore if present
+        if (section.contains("display.lore")) {
+            section.set("lore", section.getStringList("display.lore"));
+        }
         analyze(section, functionMap);
     }
 

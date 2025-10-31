@@ -24,9 +24,7 @@ import net.momirealms.customfishing.api.mechanic.statistic.StatisticsKeys;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 import static java.util.Objects.requireNonNull;
 
@@ -39,6 +37,7 @@ public class LootImpl implements Loot {
     private final boolean preventGrabbing;
     private final String id;
     private final String nick;
+    private final List<String> lore;
     private final StatisticsKeys statisticsKeys;
     private final MathValue<Player> score;
     private final String[] groups;
@@ -46,7 +45,7 @@ public class LootImpl implements Loot {
     private final MathValue<Player> toInventory;
     private final Map<String, TextValue<Player>> customData;
 
-    public LootImpl(LootType type, boolean instantGame, boolean disableGame, boolean disableStatistics, boolean showInFinder, boolean preventGrabbing, String id, String nick, StatisticsKeys statisticsKeys, MathValue<Player> score, String[] groups, LootBaseEffect lootBaseEffect, MathValue<Player> toInventory, Map<String, TextValue<Player>> customData) {
+    public LootImpl(LootType type, boolean instantGame, boolean disableGame, boolean disableStatistics, boolean showInFinder, boolean preventGrabbing, String id, String nick, List<String> lore, StatisticsKeys statisticsKeys, MathValue<Player> score, String[] groups, LootBaseEffect lootBaseEffect, MathValue<Player> toInventory, Map<String, TextValue<Player>> customData) {
         this.type = type;
         this.instantGame = instantGame;
         this.disableGame = disableGame;
@@ -54,6 +53,7 @@ public class LootImpl implements Loot {
         this.showInFinder = showInFinder;
         this.id = id;
         this.nick = nick;
+        this.lore = lore != null ? new ArrayList<>(lore) : new ArrayList<>();
         this.statisticsKeys = statisticsKeys;
         this.score = score;
         this.groups = groups;
@@ -82,6 +82,12 @@ public class LootImpl implements Loot {
     @Override
     public String nick() {
         return nick;
+    }
+
+    @NotNull
+    @Override
+    public List<String> lore() {
+        return new ArrayList<>(lore);
     }
 
     @Override
@@ -144,6 +150,7 @@ public class LootImpl implements Loot {
         private boolean preventGrabbing = false;
         private String id = null;
         private String nick = "UNDEFINED";
+        private List<String> lore = new ArrayList<>();
         private StatisticsKeys statisticsKeys = null;
         private MathValue<Player> score = DEFAULT_SCORE;
         private String[] groups = new String[0];
@@ -192,6 +199,13 @@ public class LootImpl implements Loot {
             return this;
         }
         @Override
+        public Builder lore(List<String> lore) {
+            if (lore != null) {
+                this.lore = new ArrayList<>(lore);
+            }
+            return this;
+        }
+        @Override
         public Builder statisticsKeys(StatisticsKeys statisticsKeys) {
             this.statisticsKeys = statisticsKeys;
             return this;
@@ -232,6 +246,7 @@ public class LootImpl implements Loot {
                     preventGrabbing,
                     requireNonNull(id),
                     Optional.ofNullable(nick).orElse(id),
+                    lore,
                     Optional.ofNullable(statisticsKeys).orElse(new StatisticsKeys(id, id)),
                     score,
                     groups,

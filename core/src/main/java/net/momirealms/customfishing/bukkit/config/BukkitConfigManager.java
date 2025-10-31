@@ -1238,6 +1238,10 @@ public class BukkitConfigManager extends ConfigManager {
             return builder -> builder.nick(string);
         }, "nick");
         this.registerLootParser(object -> {
+            List<String> lore = ListUtils.toList(object);
+            return builder -> builder.lore(lore);
+        }, "lore");
+        this.registerLootParser(object -> {
             boolean value = (boolean) object;
             return builder -> builder.showInFinder(value);
         }, "show-in-fishfinder");

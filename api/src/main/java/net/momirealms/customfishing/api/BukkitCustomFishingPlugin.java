@@ -20,6 +20,7 @@ package net.momirealms.customfishing.api;
 import net.momirealms.customfishing.api.integration.IntegrationManager;
 import net.momirealms.customfishing.api.mechanic.action.ActionManager;
 import net.momirealms.customfishing.api.mechanic.bag.BagManager;
+import net.momirealms.customfishing.api.mechanic.loot.LootGroupProbabilityCalculator;
 import net.momirealms.customfishing.api.mechanic.block.BlockManager;
 import net.momirealms.customfishing.api.mechanic.competition.CompetitionManager;
 import net.momirealms.customfishing.api.mechanic.config.ConfigManager;
@@ -87,6 +88,7 @@ public abstract class BukkitCustomFishingPlugin implements CustomFishingPlugin {
     protected FishingManager fishingManager;
     protected GameManager gameManager;
     protected HologramManager hologramManager;
+    protected LootGroupProbabilityCalculator lootGroupProbabilityCalculator;
 
     /**
      * Constructs a new BukkitCustomFishingPlugin instance.
@@ -368,6 +370,15 @@ public abstract class BukkitCustomFishingPlugin implements CustomFishingPlugin {
      */
     public HologramManager getHologramManager() {
         return hologramManager;
+    }
+
+    /**
+     * Retrieves the LootGroupProbabilityCalculator.
+     *
+     * @return the {@link LootGroupProbabilityCalculator}
+     */
+    public LootGroupProbabilityCalculator getLootGroupProbabilityCalculator() {
+        return lootGroupProbabilityCalculator;
     }
 
     /**

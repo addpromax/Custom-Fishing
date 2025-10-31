@@ -24,6 +24,7 @@ import net.momirealms.customfishing.api.mechanic.statistic.StatisticsKeys;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.List;
 import java.util.Map;
 
 public interface Loot {
@@ -101,6 +102,14 @@ public interface Loot {
      */
     @NotNull
     String nick();
+
+    /**
+     * Get the display lore for this loot.
+     *
+     * @return The lore of the loot, or empty list if not set.
+     */
+    @NotNull
+    List<String> lore();
 
     /**
      * Get the statistics key associated with this loot.
@@ -214,6 +223,14 @@ public interface Loot {
          * @return The builder instance.
          */
         Builder nick(String nick);
+
+        /**
+         * Set the lore for the loot.
+         *
+         * @param lore The lore.
+         * @return The builder instance.
+         */
+        Builder lore(List<String> lore);
 
         /**
          * Set the statistics key for the loot.

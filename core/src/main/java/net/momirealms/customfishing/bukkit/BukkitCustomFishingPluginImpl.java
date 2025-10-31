@@ -27,6 +27,7 @@ import net.momirealms.customfishing.api.mechanic.misc.placeholder.BukkitPlacehol
 import net.momirealms.customfishing.api.util.EventUtils;
 import net.momirealms.customfishing.bukkit.action.BukkitActionManager;
 import net.momirealms.customfishing.bukkit.bag.BukkitBagManager;
+import net.momirealms.customfishing.bukkit.loot.BukkitLootGroupProbabilityCalculator;
 import net.momirealms.customfishing.bukkit.block.BukkitBlockManager;
 import net.momirealms.customfishing.bukkit.command.BukkitCommandManager;
 import net.momirealms.customfishing.bukkit.competition.BukkitCompetitionManager;
@@ -139,6 +140,7 @@ public class BukkitCustomFishingPluginImpl extends BukkitCustomFishingPlugin {
         this.integrationManager = new BukkitIntegrationManager(this);
         this.gameManager = new BukkitGameManager(this);
         this.hologramManager = new HologramManager(this);
+        this.lootGroupProbabilityCalculator = new BukkitLootGroupProbabilityCalculator(this);
         this.commandManager = new BukkitCommandManager(this);
         this.commandManager.registerDefaultFeatures();
 
@@ -204,6 +206,11 @@ public class BukkitCustomFishingPluginImpl extends BukkitCustomFishingPlugin {
         this.storageManager.reload();
         this.fishingManager.reload();
         this.hologramManager.reload();
+        
+        // Clear loot group probability cache on reload
+        if (this.lootGroupProbabilityCalculator != null) {
+            this.lootGroupProbabilityCalculator.clearCache();
+        }
 
         this.itemManager.load();
         this.eventManager.load();
